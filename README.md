@@ -1,6 +1,24 @@
 # Ferry DB
-An embedded multithreaded database with advanced tree and graph algorithms with
-proper type system.
+An embedded in-memory data-structure DB with proper type system.
+Supports async background persistence.
+
+
+## Available data structures
+- Key Value Store
+- Graph (Weighted)
+- Multi-Graph (Weighted)
+- State Machine
+- Indexed Table
+
+## Properties
+| Property | Status         | Comments                                                                              |
+| -------- |----------------|---------------------------------------------------------------------------------------|
+| Atomic | n/a            | Only allows one operation at a time and either it is successful or unsuccessful.      |
+| Consistency | Read Committed | A read returns only committed data.                                                   |
+| Isolation | Read Committed | In the event of concurrent read and write only, reads can only retrieve last committed data. |
+| Durability | Intermittent   | Operations occur in memory and sync to file system happens every second on a background thread. |
+| Conflict Resolution | Last write wins | Transactions are ordered by timestamp of receipt and last write wins. |
+
 
 ## Use Case#1: Namespaced Key-Value Store
 The developer can create namespaces and within each namespace they can create and query key 
@@ -24,6 +42,7 @@ Get(Namespace, Key)
 # Delete a value from the store
 Delete(Namespace, Key)
 ```
+
 
 ## Use Case#2: Namespaced Graphs w/o Optional Weights
 The developer can create and query graphs within a namespace with the following abilities:
@@ -58,6 +77,7 @@ DeleteEdge(Namespace, Graph, FromNode, ToNode)
 DeleteNode(Namespace, Graph, Node)
 ```
 
+
 # Use Case#3: Namespaced Graph Traversals
 For graphs created in Use Case#2, we create a data structure which allows the 
 developer to create and query traversals. Essentially, there is cursor which
@@ -70,6 +90,7 @@ AddTraversal(Namespace, Graph, Traversal, Node)
 # Return the current node and the traverse history
 GetTraversal(Namespace, Graph, Traversal)
 ```
+
 
 # Use Case#4: Ability to define Namespaced Multi Graph with optional weights
 Everything in use case two but two Nodes can have more than one edge between
@@ -98,6 +119,7 @@ DeleteEdge(Namespace, Graph, FromNode, ToNode, EdgeName)
 DeleteNode(Namespace, Graph, Node)
 ```
 
+
 # Use Case#5: Namespaced Multi Graph Traversals
 Same as Use Case#3 but for Multi Graphs: ability create and retrieve traversals.
 
@@ -108,6 +130,7 @@ AddTraversal(Namespace, Graph, Traversal, Node, EdgeName)
 # Return the current node and the traverse history with the EdgeName
 GetTraversal(Namespace, Graph, Traversal)
 ```
+
 
 # Use Case#6: Namespaced State Machine
 The developer can define a series states and transition rules.
@@ -126,6 +149,7 @@ RemoveState(Namespace, Machine, State)
 RemoveTransition(Namespace, Machine, Trigger, FromState, ToState)
 ```
 
+
 # Use Case#7: State Machine Instances
 Allow the developer to create instances of State Machine(s) defined in Use Case#6
 and retrieve their current state and query the transition history.
@@ -140,6 +164,7 @@ GetStateMachine(Namespace, Machine, Instance)
 # Trigger a transition
 TriggerStateMachine(Namespace, Machine, Instance, Trigger)
 ```
+
 
 # Use Case#8: Namespaced Indexed Table
 Allow the developer to create a define a table structure with an index column.
@@ -171,6 +196,7 @@ DeleteRow(Namespace, Table, Index)
 DropIndexedTable(Namespace, Table)
 ```
 
+
 # Use Case#9: (Advanced) Namespaced Cross Platform Async Firehose
 All the above operation publish to a central pub-sub queue and provide an interface
 to the developer to listen for events on this queue. The architecture is that of a 
@@ -181,3 +207,18 @@ to filter, buffer them among other things.
 # Subscribe to one or more events or a wildcard like *
 Subscribe(Namespace, Event)
 ```
+
+
+# Use Case#10: (Advanced) Async file system persistent
+The data is intermittently persisted to a file system in a non-blocking manner
+which is cross-platform. There can be a potential data loss if the system crashes
+after the last-sync but before the next sync.
+
+
+# Use Case#11: (Advanced) Dump & Restore
+Ability to dump to and restore from a flat file the entire database or a specific Namespace.
+
+
+# Use Case#12: Command Line Interface for convenience
+A simple cli-tool which exposes all the operations plus management commands like
+backup and restores for convenience.
