@@ -31,8 +31,11 @@ Include(FetchContent)
 
 # Specify the source files for the library
 set(SOURCES
-    src/main.cpp
+    "src/Ferrydb.cpp"
+    "include/Ferrydb.h"
 )
+
+include_directories("include")
 
 # Create the static library
 add_library(ferrydb STATIC ${SOURCES})
