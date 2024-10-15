@@ -278,3 +278,27 @@ cython_debug/
 # IDE
 .idea
 .vscode
+
+# Cmake (Custom)
+CMakeLists.txt.user
+CMakeCache.txt
+CMakeFiles
+CMakeScripts
+Testing
+Makefile
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+_deps
+lib/
+bin/
+.ninja_deps
+.ninja_log
+.codelite
+*.project
+*.workspace
+.ctagsd
+build.ninja
+*.cmake
+DartConfiguration.tcl

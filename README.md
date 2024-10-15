@@ -2,6 +2,14 @@
 An embedded in-memory data-structure DB with proper type system.
 Supports async background persistence.
 
+# Usage
+```
+# Needs to be only done once at setup or when you toggle between build types
+cmake -DCMAKE_BUILD_TYPE=Debug .  
+
+# After every code change to build a new binary
+cmake --build . 
+```
 
 ## Available data structures
 - Key Value Store
