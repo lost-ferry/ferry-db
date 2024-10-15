@@ -94,7 +94,7 @@ GetTraversal(Namespace, Graph, Traversal)
 
 # Use Case#4: Ability to define Namespaced Multi Graph with optional weights
 Everything in use case two but two Nodes can have more than one edge between
-them. Each edge between two Nodes will have a required name and that can has to be
+them. Each edge between two Nodes will have a required name and that name has to be
 unique between the two Nodes.
 ```
 # Create a node/vertex
@@ -121,7 +121,7 @@ DeleteNode(Namespace, Graph, Node)
 
 
 # Use Case#5: Namespaced Multi Graph Traversals
-Same as Use Case#3 but for Multi Graphs: ability create and retrieve traversals.
+Same as Use Case#3 but for Multi Graphs: ability to create and retrieve traversals.
 
 ```
 # Create a traversal for Namespace/Graph with name, Traversal, at Node
@@ -133,7 +133,7 @@ GetTraversal(Namespace, Graph, Traversal)
 
 
 # Use Case#6: Namespaced State Machine
-The developer can define a series states and transition rules.
+The developer can define a state machine as a series of states and transition rules.
 
 ```
 # Create a state
@@ -167,8 +167,8 @@ TriggerStateMachine(Namespace, Machine, Instance, Trigger)
 
 
 # Use Case#8: Namespaced Indexed Table
-Allow the developer to create a define a table structure with an index column.
-The index column only has unique values. The table supports the following data
+Allow the developer to define a table structure with an index column.
+The index column only allows unique values. The table supports the following data
 types:
 
 Index column once created cannot be deleted or altered.
@@ -200,7 +200,7 @@ DropIndexedTable(Namespace, Table)
 # Use Case#9: (Advanced) Namespaced Cross Platform Async Firehose
 All the above operation publish to a central pub-sub queue and provide an interface
 to the developer to listen for events on this queue. The architecture is that of a 
-firehose all events are published to the queue as received, and it is upon the consumers
+firehose: all events are published to the queue as received, and it is upon the consumers
 to filter, buffer them among other things.
 
 ```
@@ -211,8 +211,8 @@ Subscribe(Namespace, Event)
 
 # Use Case#10: (Advanced) Async file system persistent
 The data is intermittently persisted to a file system in a non-blocking manner
-which is cross-platform. There can be a potential data loss if the system crashes
-after the last-sync but before the next sync.
+which is cross-platform. There can be a potential data loss of operation on the data which 
+were done between any two sync.
 
 
 # Use Case#11: (Advanced) Dump & Restore
