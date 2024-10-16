@@ -1,6 +1,7 @@
+// Copyright [year] <Copyright Owner>
 #include <iostream>
-#include "../include/graph/graph.h"
 #include <cassert>
+#include "../include/graph/graph.h"
 
 int main() {
     std::cout << "Starting Tests \n";
