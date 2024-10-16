@@ -7,6 +7,7 @@
 #include <unordered_set>
 #include <stack>
 #include<iostream>
+#include<vector>
 
 namespace FerryDB {
 	template<class Vertex, typename WeightType = int>
@@ -83,9 +84,14 @@ namespace FerryDB {
 			}
 			auto FromVertexID = VertexToIdMapping[FromNode];
 			auto& edge_set = Edges[FromVertexID];
-			for (auto& edge : edge_set) {
-				if (edge.destination == VertexToIdMapping[ToNode]) {
-					edge.weight = new_weight;
+			for (auto it = edge_set.begin(); it != edge_set.end(); ++it) {
+				if (it->destination == VertexToIdMapping[ToNode]) {
+					Edge modified_edge = *it;
+					edge_set.erase(it);
+
+					modified_edge.weight = new_weight;
+					
+					edge_set.insert(modified_edge);
 					return;
 				}
 			}
@@ -182,6 +188,23 @@ namespace FerryDB {
 				}
 			}
 		}
+
+		WeightType GetEdgeWeights(const Vertex& FromNode, const Vertex& ToNode) {
+			if (VertexToIdMapping.find(FromNode) == VertexToIdMapping.end()) {
+				throw std::invalid_argument("FromNode does not exist.");
+			}
+			if (VertexToIdMapping.find(ToNode) == VertexToIdMapping.end()) {
+				throw std::invalid_argument("ToNode does not exist.");
+			}
+			auto FromVertexID = VertexToIdMapping[FromNode];
+			auto& edge_set = Edges[FromVertexID];
+			for (const auto& edge : edge_set) {
+				if (edge.destination == VertexToIdMapping[ToNode]) {
+					return edge.weight;
+				}
+			}
+			throw std::invalid_argument("Edge does not exist.");
+		}
 	};
 
 	template<class Vertex, typename WeightType>
@@ -242,6 +265,20 @@ namespace FerryDB {
 				throw std::invalid_argument("Namespace does not exist.");
 			}
 			Graphs[Namespace].PrintGraphDFS(StartVertex);
+		}
+
+		WeightType GetEdgeWeights(const std::string& Namespace, const Vertex& FromNode, const Vertex& ToNode) {
+			if (Graphs.find(Namespace) == Graphs.end()) {
+				throw std::invalid_argument("Namespace does not exist.");
+			}
+			return Graphs[Namespace].GetEdgeWeights(FromNode, ToNode);
+		}
+
+		size_t NodeCount(const std::string& Namespace) {
+			if (Graphs.find(Namespace) == Graphs.end()) {
+				throw std::invalid_argument("Namespace does not exist.");
+			}
+			return Graphs[Namespace].VertexToIdMapping.size();
 		}
 	};
 }

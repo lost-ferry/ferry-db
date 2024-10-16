@@ -21,7 +21,6 @@ else()
     message(WARNING "Unsupported build type: ${CMAKE_BUILD_TYPE}. Using default flags.")
 endif()
 
-
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
@@ -29,23 +28,16 @@ set(CMAKE_SKIP_INSTALL_ALL_DEPENDENCY true)
 
 Include(FetchContent)
 
-# Specify the source files for the library
-set(SOURCES
-    "src/graph.cpp"
-)
 
 include_directories("include")
 
-# Create the static library
-add_library(ferrydb STATIC ${SOURCES})
+add_library(ferrydb INTERFACE)
 
-# Specify the include directories for the library
-target_include_directories(ferrydb PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
+target_include_directories(ferrydb INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
 )
 
-# Optionally, set the version and SOVERSION
 set_target_properties(ferrydb PROPERTIES
     VERSION ${PROJECT_VERSION}
     SOVERSION 1
@@ -54,7 +46,6 @@ set_target_properties(ferrydb PROPERTIES
 # Installation rules (optional)
 install(TARGETS ferrydb
     EXPORT ferrydbExport
-    ARCHIVE DESTINATION lib
 )
 
 install(EXPORT ferrydbExport
@@ -63,7 +54,13 @@ install(EXPORT ferrydbExport
     DESTINATION lib/cmake/ferrydb
 )
 
-install(DIRECTORY src/
+install(DIRECTORY include/
     DESTINATION include
     FILES_MATCHING PATTERN "*.h"
 )
+
+
+add_executable(Tests "tests/simple_graph_test.cpp")
+target_link_libraries(Tests ferrydb)
+add_test(NAME Tests
+         COMMAND Tests)
