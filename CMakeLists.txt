@@ -31,8 +31,7 @@ Include(FetchContent)
 
 # Specify the source files for the library
 set(SOURCES
-    "src/Ferrydb.cpp"
-    "include/Ferrydb.h"
+    "src/graph.cpp"
 )
 
 include_directories("include")
