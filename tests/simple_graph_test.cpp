@@ -1,6 +1,6 @@
 #include <iostream>
 #include <cassert>
-#include "../include/graph/graph.h"
+#include "graph/graph.h"
 
 int main() {
     std::cout << "Starting Tests \n";
@@ -22,5 +22,7 @@ int main() {
     assert(graph.GetEdgeWeights("Namespace1", 1, 2) == 5);
     graph.UpdateWeight("Namespace1", 1, 2, 8);
     assert(graph.GetEdgeWeights("Namespace1", 1, 2) == 8);
+
+
     std::cout << "Done \n";
 }
