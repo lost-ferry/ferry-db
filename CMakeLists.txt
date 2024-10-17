@@ -61,16 +61,19 @@ install(DIRECTORY include/
 )
 
 # Add test executable
-add_executable(Tests "tests/simple_graph_test.cpp")
-target_link_libraries(Tests ferrydb)
+add_executable(SimpleGraphTest "tests/simple_graph_test.cpp")
+target_link_libraries(SimpleGraphTest ferrydb)
+add_executable(TypesGraphTest "tests/types_graph_test.cpp")
+target_link_libraries(TypesGraphTest ferrydb)
 
 # Add the test
-add_test(NAME simple_graph_test COMMAND Tests)
+add_test(NAME simple_graph_test COMMAND SimpleGraphTest)
+add_test(NAME types_graph_test COMMAND TypesGraphTest)
 
 # Ensure tests are run after build using a custom target
 add_custom_target(run_unit_tests
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-    DEPENDS Tests)
+    DEPENDS SimpleGraphTest TypesGraphTest)
 
 # Ensure the tests run when you invoke 'make' (or similar)
-add_dependencies(run_unit_tests Tests)
+add_dependencies(run_unit_tests SimpleGraphTest TypesGraphTest)

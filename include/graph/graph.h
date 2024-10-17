@@ -1,4 +1,3 @@
-// Copyright [year] <Copyright Owner>
 #ifndef INCLUDE_GRAPH_GRAPH_H_
 #define INCLUDE_GRAPH_GRAPH_H_
 
@@ -6,33 +5,32 @@
 #include <any>
 #include <iostream>
 #include <stack>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
-#include <vector>
 #include <utility>
-#include <string>
+#include <vector>
+#include <memory>
+#include <variant>
 
 namespace FerryDB {
-template <class Vertex, typename WeightType = int>
-// Might not need Printable here, but added it in case we do need it
-  requires graph::PrintableGraphTypes<Vertex, WeightType> &&
-           graph::Hashable<Vertex> && graph::Hashable<WeightType>
+template <class VertexID, class VertexData, typename WeightType = int>
+  requires graph::Hashable<VertexID> && graph::Hashable<WeightType>
 class SingleGraph {
- public:
-  // Added Vertex and VertexID 2 way mapping in-case we need to do
-  // complex operations
-  using VertexID = int;
+public:
   using Edge = graph::edge_descriptor<VertexID, WeightType>;
+  using VertexDataPtr = VertexData;
 
- private:
-  std::unordered_map<Vertex, VertexID> VertexToIdMapping;
-  std::unordered_map<VertexID, Vertex> IdToVertexMapping;
+private:
+  std::unordered_map<VertexID, VertexDataPtr> IdToVertexMapping;
   std::unordered_map<VertexID, std::unordered_set<Edge>> Edges;
   VertexID VertexId = 0;
 
-  void AddEdge(const Edge &edge) { Edges[edge.source].insert(edge); }
+  void AddEdge(const Edge &Edge) { 
+    Edges[Edge.source].insert(Edge);
+  }
 
- public:
+public:
   SingleGraph() = default;
 
   SingleGraph(const SingleGraph &Other) {
@@ -63,90 +61,100 @@ class SingleGraph {
 
   ~SingleGraph() = default;
 
-  void AddNode(Vertex value) {
-    IdToVertexMapping[VertexId] = value;
-    VertexToIdMapping[value] = VertexId++;
+  VertexData Get(const VertexID& Id) {
+    if (IdToVertexMapping.find(Id) == IdToVertexMapping.end()) {
+        throw std::invalid_argument("Vertex does not exist.");
+    }
+
+    if (std::holds_alternative<VertexData>(IdToVertexMapping[Id])) {
+        // Return the direct value
+        return std::get<VertexData>(IdToVertexMapping[Id]);
+    } else if (std::holds_alternative<std::shared_ptr<VertexData>>(IdToVertexMapping[Id])) {
+        // Dereference the shared pointer to get the value
+        return *(std::get<std::shared_ptr<VertexData>>(IdToVertexMapping[Id]));
+    } else {
+        throw std::runtime_error("Unexpected type in IdToVertexMapping.");
+    }
   }
 
-  void AddEdge(const Vertex &FromNode, const Vertex &ToNode,
+  void AddNode(const VertexID& Id, const VertexData& Value) { IdToVertexMapping[Id] = Value; }
+
+  void AddNode(const VertexID &Id, VertexData* Value) { IdToVertexMapping[Id] = Value; }
+
+  void AddEdge(const VertexID &FromVertexId, const VertexID &ToVertexId,
                WeightType Weight) {
-    if (VertexToIdMapping.find(FromNode) == VertexToIdMapping.end()) {
-      throw std::invalid_argument("FromNode does not exist.");
+    if (IdToVertexMapping.find(FromVertexId) == IdToVertexMapping.end()) {
+      throw std::invalid_argument("FromVertexId does not exist.");
     }
-    if (VertexToIdMapping.find(ToNode) == VertexToIdMapping.end()) {
-      throw std::invalid_argument("ToNode does not exist.");
+    if (IdToVertexMapping.find(ToVertexId) == IdToVertexMapping.end()) {
+      throw std::invalid_argument("ToVertexId does not exist.");
     }
-    Edge edge(VertexToIdMapping[FromNode], VertexToIdMapping[ToNode], Weight);
-    AddEdge(edge);
+    Edge Edge_(FromVertexId, ToVertexId, Weight);
+    AddEdge(Edge_);
   }
 
-  void UpdateWeight(const Vertex &FromNode, const Vertex &ToNode,
-                    WeightType new_weight) {
-    if (VertexToIdMapping.find(FromNode) == VertexToIdMapping.end()) {
-      throw std::invalid_argument("FromNode does not exist.");
+  void UpdateWeight(const VertexID &FromVertexId, const VertexID &ToVertexId,
+                    WeightType NewWeight) {
+    if (IdToVertexMapping.find(FromVertexId) == IdToVertexMapping.end()) {
+      throw std::invalid_argument("FromVertexId does not exist.");
     }
-    if (VertexToIdMapping.find(ToNode) == VertexToIdMapping.end()) {
-      throw std::invalid_argument("ToNode does not exist.");
+    if (IdToVertexMapping.find(ToVertexId) == IdToVertexMapping.end()) {
+      throw std::invalid_argument("ToVertexId does not exist.");
     }
-    auto FromVertexID = VertexToIdMapping[FromNode];
-    auto &edge_set = Edges[FromVertexID];
-    for (auto it = edge_set.begin(); it != edge_set.end(); ++it) {
-      if (it->destination == VertexToIdMapping[ToNode]) {
-        Edge modified_edge = *it;
-        edge_set.erase(it);
+    auto &EdgeSet = Edges[FromVertexId];
+    for (auto it = EdgeSet.begin(); it != EdgeSet.end(); ++it) {
+      if (it->destination == ToVertexId) {
+        Edge ModifiedEdge = *it;
+        EdgeSet.erase(it);
 
-        modified_edge.weight = new_weight;
+        ModifiedEdge.weight = NewWeight;
 
-        edge_set.insert(modified_edge);
+        EdgeSet.insert(ModifiedEdge);
         return;
       }
     }
     throw std::invalid_argument("Edge does not exist.");
   }
 
-  std::unordered_set<Vertex> GetOutBoundNodes(const Vertex &VertexVal) {
-    if (VertexToIdMapping.find(VertexVal) == VertexToIdMapping.end()) {
+  std::vector<std::pair<VertexID, VertexDataPtr>> GetOutBoundNodes(const VertexID &VertexId) {
+    if (IdToVertexMapping.find(VertexId) == IdToVertexMapping.end()) {
       throw std::invalid_argument("Vertex does not exist.");
     }
-    auto VertexId = VertexToIdMapping[VertexVal];
     auto EdgesAtVertex = Edges[VertexId];
-    std::unordered_set<Vertex> out_bound_nodes;
-    for (const auto &edge : EdgesAtVertex) {
-      out_bound_nodes.insert(IdToVertexMapping[edge.destination]);
+    std::vector<std::pair<VertexID, VertexDataPtr>> OutBoundNodes;
+    for (const auto &Edge_ : EdgesAtVertex) {
+      OutBoundNodes.push_back(std::make_pair(Edge_.destination, IdToVertexMapping[Edge_.destination]));
     }
-    return out_bound_nodes;
+    return OutBoundNodes;
   }
 
-  std::unordered_set<Vertex> GetInBoundNodes(const Vertex &VertexVal) {
-    if (VertexToIdMapping.find(VertexVal) == VertexToIdMapping.end()) {
+  std::vector<std::pair<VertexID, VertexDataPtr>> GetInBoundNodes(const VertexID &VertexId) {
+    if (IdToVertexMapping.find(VertexId) == IdToVertexMapping.end()) {
       throw std::invalid_argument("Vertex does not exist.");
     }
-    auto id = VertexToIdMapping[VertexVal];
-    std::unordered_set<Vertex> in_bound_nodes;
-    for (const auto &[source, edge_set] : Edges) {
-      for (const auto &edge : edge_set) {
-        if (edge.destination == id) {
-          in_bound_nodes.insert(IdToVertexMapping[edge.source]);
+    std::vector<std::pair<VertexID, VertexDataPtr>> InBoundNodes;
+    for (const auto &[Source, EdgeSet] : Edges) {
+      for (const auto &Edge : EdgeSet) {
+        if (Edge.destination == VertexId) {
+          InBoundNodes.push_back(std::make_pair(Edge.source, IdToVertexMapping[Edge.source]));
         }
       }
     }
-    return in_bound_nodes;
+    return InBoundNodes;
   }
 
   // TODO(AnishDeshmukh1999): handle orphan graphs
-  void DeleteEdge(const Vertex &FromNode, const Vertex &ToNode) {
-    if (VertexToIdMapping.find(FromNode) == VertexToIdMapping.end()) {
-      throw std::invalid_argument("FromNode does not exist.");
+  void DeleteEdge(const VertexID &FromVertexId, const VertexID &ToVertexId) {
+    if (IdToVertexMapping.find(FromVertexId) == IdToVertexMapping.end()) {
+      throw std::invalid_argument("FromVertexId does not exist.");
     }
-    if (VertexToIdMapping.find(ToNode) == VertexToIdMapping.end()) {
-      throw std::invalid_argument("ToNode does not exist.");
+    if (IdToVertexMapping.find(ToVertexId) == IdToVertexMapping.end()) {
+      throw std::invalid_argument("ToVertexId does not exist.");
     }
-    auto VertexID = VertexToIdMapping[FromNode];
-    auto EdgesAtVertex = Edges[VertexID];
-    std::unordered_set<Vertex> out_bound_nodes;
-    for (const auto &edge : EdgesAtVertex) {
-      if (edge.destination == VertexToIdMapping[ToNode]) {
-        EdgesAtVertex.erase(edge);
+    auto EdgesAtVertex = Edges[VertexId];
+    for (const auto &Edge : EdgesAtVertex) {
+      if (Edge.destination == IdToVertexMapping[ToVertexId]) {
+        EdgesAtVertex.erase(Edge);
         return;
       }
     }
@@ -154,126 +162,129 @@ class SingleGraph {
   }
 
   // TODO(AnishDeshmukh1999): handle orphan graphs
-  void DeleteNode(const Vertex &vertex) {
-    auto VertexId = VertexToIdMapping[vertex];
-    VertexToIdMapping.erase(vertex);
+  void DeleteNode(const VertexID &VertexId) {
     IdToVertexMapping.erase(VertexId);
     Edges.erase(VertexId);
-    for (auto &[source, edge_set] : Edges) {
-      std::vector<Edge> to_delete;
-      for (const auto &edge : edge_set) {
-        if (edge.destination == VertexId) {
-          to_delete.push_back(edge);
+    for (auto &[Source, EdgeSet] : Edges) {
+      std::vector<Edge> ToDelete;
+      for (const auto &Edge : EdgeSet) {
+        if (Edge.destination == VertexId) {
+          ToDelete.push_back(Edge);
         }
       }
-      for (const auto &edge : to_delete) {
-        edge_set.erase(edge);
+      for (const auto &Edge : ToDelete) {
+        EdgeSet.erase(Edge);
       }
     }
   }
 
-  void PrintGraphDFS(Vertex startVertex) {
-    auto VertexId = VertexToIdMapping[startVertex];
-    std::stack<VertexID> stack;
-    std::unordered_set<VertexID> visited;
-    stack.push(VertexId);
+  void PrintGraphDFS(VertexID StartVertexId) {
+    std::stack<VertexID> Stack;
+    std::unordered_set<VertexID> Visited;
+    Stack.push(StartVertexId);
 
-    while (!stack.empty()) {
-      auto current = stack.top();
-      stack.pop();
+    while (!Stack.empty()) {
+      auto CurrentVertexId = Stack.top();
+      Stack.pop();
 
-      if (visited.find(current) == visited.end()) {
-        visited.insert(current);
-        std::cout << IdToVertexMapping[current] << " ";
+      if (Visited.find(CurrentVertexId) == Visited.end()) {
+        Visited.insert(CurrentVertexId);
+        std::cout << CurrentVertexId << " ";
 
-        for (const auto &edge : Edges[current]) {
-          if (visited.find(edge.destination) == visited.end()) {
-            stack.push(edge.destination);
+        for (const auto &Edge : Edges[CurrentVertexId]) {
+          if (Visited.find(Edge.destination) == Visited.end()) {
+            Stack.push(Edge.destination);
           }
         }
       }
     }
   }
 
-  WeightType GetEdgeWeights(const Vertex &FromNode, const Vertex &ToNode) {
-    if (VertexToIdMapping.find(FromNode) == VertexToIdMapping.end()) {
-      throw std::invalid_argument("FromNode does not exist.");
+  WeightType GetEdgeWeights(const VertexID &FromVertexId, const VertexID &ToVertexId) {
+    if (IdToVertexMapping.find(FromVertexId) == IdToVertexMapping.end()) {
+      throw std::invalid_argument("FromVertexId does not exist.");
     }
-    if (VertexToIdMapping.find(ToNode) == VertexToIdMapping.end()) {
-      throw std::invalid_argument("ToNode does not exist.");
+    if (IdToVertexMapping.find(ToVertexId) == IdToVertexMapping.end()) {
+      throw std::invalid_argument("ToVertexId does not exist.");
     }
-    auto FromVertexID = VertexToIdMapping[FromNode];
-    auto &edge_set = Edges[FromVertexID];
-    for (const auto &edge : edge_set) {
-      if (edge.destination == VertexToIdMapping[ToNode]) {
-        return edge.weight;
+    auto &EdgeSet = Edges[FromVertexId];
+    for (const auto &Edge : EdgeSet) {
+      if (Edge.destination == ToVertexId) {
+        return Edge.weight;
       }
     }
     throw std::invalid_argument("Edge does not exist.");
   }
 };
 
-template <class Vertex, typename WeightType>
+template <class VertexID, class VertexData, typename WeightType>
 // Might not need Printable here, but added it in case we do need it
-  requires graph::PrintableGraphTypes<Vertex, WeightType> &&
-           graph::Hashable<Vertex> && graph::Hashable<WeightType>
+  requires graph::Hashable<VertexID> && graph::Hashable<WeightType>
 class Graph {
- private:
-  std::unordered_map<std::string, SingleGraph<Vertex, WeightType>> Graphs;
+private:
+  std::unordered_map<std::string, SingleGraph<VertexID, VertexData, WeightType>> Graphs;
 
- public:
-  using GraphType = SingleGraph<Vertex, WeightType>;
+public:
+  using VertexDataPtr = VertexData;
+  using GraphType = SingleGraph<VertexID, VertexData, WeightType>;
 
   Graph() = default;
 
-  void AddNode(const std::string &Namespace, const Vertex &Node) {
+  void AddNode(const std::string &Namespace, const VertexID &VertexId, const VertexData &Vertex) {
     if (Graphs.find(Namespace) == Graphs.end()) {
-      Graphs[Namespace] = SingleGraph<Vertex, WeightType>();
+      Graphs[Namespace] = SingleGraph<VertexID, VertexData, WeightType>();
     }
-    Graphs[Namespace].AddNode(Node);
+    Graphs[Namespace].AddNode(VertexId, Vertex);
   }
 
-  void AddEdge(const std::string &Namespace, const Vertex &FromNode,
-               const Vertex &ToNode, WeightType Weight) {
+  void AddNode(const std::string &Namespace, const VertexID &VertexId, VertexData *Vertex) {
     if (Graphs.find(Namespace) == Graphs.end()) {
-      throw std::invalid_argument("Namespace does not exist.");
+      Graphs[Namespace] = SingleGraph<VertexID, VertexData, WeightType>();
     }
-    Graphs[Namespace].AddEdge(FromNode, ToNode, Weight);
+    Graphs[Namespace].AddNode(VertexId, Vertex);
   }
 
-  void UpdateWeight(const std::string &Namespace, const Vertex &FromNode,
-                    const Vertex &ToNode, WeightType NewWeight) {
-    if (Graphs.find(Namespace) == Graphs.end()) {
-      throw std::invalid_argument("Namespace does not exist.");
-    }
-    Graphs[Namespace].UpdateWeight(FromNode, ToNode, NewWeight);
-  }
-
-  std::unordered_set<Vertex> GetOutBoundNodes(const std::string &Namespace,
-                                              const Vertex &FromNode) {
+  void AddEdge(const std::string &Namespace, const VertexID &FromVertexId,
+               const VertexID &ToVertexId, WeightType Weight) {
     if (Graphs.find(Namespace) == Graphs.end()) {
       throw std::invalid_argument("Namespace does not exist.");
     }
-    return Graphs[Namespace].GetOutBoundNodes(FromNode);
+    Graphs[Namespace].AddEdge(FromVertexId, ToVertexId, Weight);
   }
 
-  std::unordered_set<Vertex> GetInBoundNodes(const std::string &Namespace,
-                                             const Vertex &ToNode) {
+  void UpdateWeight(const std::string &Namespace, const VertexID &FromVertexId,
+                    const VertexID &ToVertexId, WeightType NewWeight) {
     if (Graphs.find(Namespace) == Graphs.end()) {
       throw std::invalid_argument("Namespace does not exist.");
     }
-    return Graphs[Namespace].GetInBoundNodes(ToNode);
+    Graphs[Namespace].UpdateWeight(FromVertexId, ToVertexId, NewWeight);
   }
 
-  void DeleteEdge(const std::string &Namespace, const Vertex &FromNode,
-                  const Vertex &ToNode) {
+  std::vector<std::pair<VertexID, VertexDataPtr>> GetOutBoundNodes(const std::string &Namespace,
+                                              const VertexID &FromVertexId) {
     if (Graphs.find(Namespace) == Graphs.end()) {
       throw std::invalid_argument("Namespace does not exist.");
     }
-    Graphs[Namespace].DeleteEdge(FromNode, ToNode);
+    return Graphs[Namespace].GetOutBoundNodes(FromVertexId);
   }
 
-  void PrintGraphDFS(const std::string &Namespace, const Vertex &StartVertex) {
+  std::vector<std::pair<VertexID, VertexDataPtr>> GetInBoundNodes(const std::string &Namespace,
+                                             const VertexID &ToVertexId) {
+    if (Graphs.find(Namespace) == Graphs.end()) {
+      throw std::invalid_argument("Namespace does not exist.");
+    }
+    return Graphs[Namespace].GetInBoundNodes(ToVertexId);
+  }
+
+  void DeleteEdge(const std::string &Namespace, const VertexID &FromVertexId,
+                  const VertexID &ToVertexId) {
+    if (Graphs.find(Namespace) == Graphs.end()) {
+      throw std::invalid_argument("Namespace does not exist.");
+    }
+    Graphs[Namespace].DeleteEdge(FromVertexId, ToVertexId);
+  }
+
+  void PrintGraphDFS(const std::string &Namespace, const VertexID &StartVertex) {
     if (Graphs.find(Namespace) == Graphs.end()) {
       throw std::invalid_argument("Namespace does not exist.");
     }
@@ -281,41 +292,26 @@ class Graph {
   }
 
   WeightType GetEdgeWeights(const std::string &Namespace,
-                            const Vertex &FromNode, const Vertex &ToNode) {
+                            const VertexID &FromVertexId, const VertexID &ToVertexId) {
     if (Graphs.find(Namespace) == Graphs.end()) {
       throw std::invalid_argument("Namespace does not exist.");
     }
-    return Graphs[Namespace].GetEdgeWeights(FromNode, ToNode);
+    return Graphs[Namespace].GetEdgeWeights(FromVertexId, ToVertexId);
   }
 
   size_t NodeCount(const std::string &Namespace) {
     if (Graphs.find(Namespace) == Graphs.end()) {
       throw std::invalid_argument("Namespace does not exist.");
     }
-    return Graphs[Namespace].VertexToIdMapping.size();
+    return Graphs[Namespace].IdToVertexMapping.size();
+  }
+
+  std::shared_ptr<VertexDataPtr> Get(const std::string &Namespace, const VertexID &Id) {
+    if (Graphs.find(Namespace) == Graphs.end()) {
+      throw std::invalid_argument("Namespace does not exist.");
+    }
+    return Graphs[Namespace].Get(Id);
   }
 };
-}  // namespace FerryDB
-
-// Create A Node
-// AddNode(Namespace, Graph, Node, NodeData);
-
-// Add an edge between two nodes with optional weight
-// AddEdge(Namespace, Graph, FromNode, ToNode, Weight);
-
-// Update the weights between nodes
-// UpdateWeight(Namespace, Graph, FromNode, ToNode, NewWeight);
-
-// Get Out Bound Nodes
-// GetOutBoundNodes(Namespace, Graph, FromNode);
-
-// Get In Bound Nodes
-// GetInBoundNodes(Namespace, Graph, ToNode);
-
-// Delete an Edge - should check for orphan graphs
-// DeleteEdge(Namespace, Graph, FromNode, ToNode);
-
-// Delete a node - should check for orphan graphs
-// DeleteNode(Namespace, Graph, Node);
-
-#endif  // INCLUDE_GRAPH_GRAPH_H_
+} // namespace FerryDB
+#endif // INCLUDE_GRAPH_GRAPH_H_

@@ -1,4 +1,3 @@
-// Copyright [year] <Copyright Owner>
 #pragma once
 #include <concepts>
 #include <optional>

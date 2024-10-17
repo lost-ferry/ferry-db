@@ -1,15 +1,14 @@
-// Copyright [year] <Copyright Owner>
 #include <iostream>
 #include <cassert>
 #include "../include/graph/graph.h"
 
 int main() {
     std::cout << "Starting Tests \n";
-    FerryDB::Graph<int, int> graph;
+    FerryDB::Graph<int, int, int> graph;
 
-    graph.AddNode("Namespace1", 1);
-    graph.AddNode("Namespace1", 2);
-    graph.AddNode("Namespace1", 3);
+    graph.AddNode("Namespace1", 1, 1);
+    graph.AddNode("Namespace1", 2, 2);
+    graph.AddNode("Namespace1", 3, 3);
 
     assert(graph.GetOutBoundNodes("Namespace1", 1).size() == 0);
     graph.AddEdge("Namespace1", 1, 2, 5);
