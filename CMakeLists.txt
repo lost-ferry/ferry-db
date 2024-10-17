@@ -70,7 +70,11 @@ install(DIRECTORY src/
 
 enable_testing()
 
-add_executable(Tests "tests/indexed_table_created.cpp")
-target_link_libraries(Tests ferrydb)
-add_test(NAME Tests
-         COMMAND Tests)
+add_executable(TableTest "tests/indexed_table_created.cpp")
+add_executable(ColumnTest "tests/indexed_table_column_created.cpp")
+target_link_libraries(TableTest ferrydb)
+target_link_libraries(ColumnTest ferrydb)
+add_test(NAME indexed_table_created
+         COMMAND TableTest)
+
+add_test(NAME indexed_table_column_created COMMAND ColumnTest)

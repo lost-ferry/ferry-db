@@ -17,7 +17,7 @@ int main() {
     row1["Age"] = "30";
 
     // Add the row with a unique index value
-    userTable.addRow("1", row1);
+    userTable.AddRow("1", row1);
 
     // Create another row
     TableRow row2;
@@ -25,10 +25,10 @@ int main() {
     row2["Age"] = "25";
 
     // Add the second row with a different unique index value
-    userTable.addRow("2", row2);
+    userTable.AddRow("2", row2);
 
     // Retrieve a row
-    TableRow retrievedRow = userTable.getRow("1");
+    TableRow retrievedRow = userTable.GetRow("1");
     std::cout << "Retrieved Row: " << retrievedRow["Name"] << ", Age: " << retrievedRow["Age"] << std::endl;
 
     return 0;

@@ -1,0 +1,24 @@
+# Pre-commit configuration file
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0  # Use the latest tag from the repository
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+
+  # Clang-format for C++ code formatting
+  - repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: v14.0.0  # Use the version you want (14.0.0 here)
+    hooks:
+      - id: clang-format
+        args: [--style=file]  # You can specify your own style file like .clang-format
+
+  # # Optional: Add a hook for checking CMakeLists.txt
+  # - repo: https://github.com/richq/cmake-lint
+  #   rev: v1.6.0
+  #   hooks:
+  #     - id: cmakelint
+  #       name: CMake Linter
+  #       files: ^CMakeLists.txt$
