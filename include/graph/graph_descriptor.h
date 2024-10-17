@@ -58,6 +58,12 @@ namespace FerryDB {
       uint32_t VertexDataOffset;
     };
 
+    struct EdgeHeader {
+      uint32_t EdgeNumber;
+      uint32_t SourceVertexIdOffset;
+      uint32_t DestinationVertexIdOffset;
+      uint32_t WeightOffset;
+    };
   };  // namespace graph
 };  // namespace FerryDB
 
