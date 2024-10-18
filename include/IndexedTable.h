@@ -38,8 +38,17 @@ class IndexedTable {
         // Method to add a new column
         void AddColumn(const std::string& columnName, DataType columnType);
 
+        // Method to remove a column
+        void RemoveColumn(const std::string& columnName);  
+
         //Method to add new row 
         void AddRow(const std::string& indexValue, const TableRow& row);
+
+        // Method to update an existing row (partial update)
+        void UpdateRow(const std::string& indexValue, const std::unordered_map<std::string, std::string>& updatedData);  
+
+        // Method to delete a row by Index
+        void DeleteRow(const std::string& indexValue);  
 
         //Method to retrieve a row by Index
         TableRow GetRow(const std::string& indexValue) const;
@@ -65,6 +74,18 @@ class NameSpace{
         IndexedTable& getTable(const std::string& tableName);
         
         void AddColumn(const std::string& tableName, const std::string& columnName, DataType columnType);
+
+        // Remove a column from a table
+        void RemoveColumn(const std::string& tableName, const std::string& columnName);  
+
+        // Update a row in a table
+        void UpdateRow(const std::string& tableName, const std::string& indexValue, const std::unordered_map<std::string, std::string>& updatedData);  
+
+        // Delete a row from a table
+        void DeleteRow(const std::string& tableName, const std::string& indexValue);  
+
+        // Drop an entire table
+        void DropIndexedTable(const std::string& tableName);  
 };
 
 #endif 

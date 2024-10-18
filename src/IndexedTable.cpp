@@ -80,6 +80,76 @@ void IndexedTable::AddColumn(const std::string& columnName, DataType columnType)
     }
 }
 
+
+void NameSpace::AddColumn(const std::string& tableName, const std::string& columnName, DataType columnType) {
+    auto it = Tables.find(tableName);
+    if (it == Tables.end()) {
+        throw std::out_of_range("Table with the given name does not exist.");
+    }
+
+    it->second.AddColumn(columnName, columnType);
+}
+
+
+// Remove a column from a table
+void IndexedTable::RemoveColumn(const std::string& columnName) {
+    if (Columns.find(columnName) == Columns.end()) {
+        throw std::invalid_argument("Column does not exist in the table.");
+    }
+
+    for (auto& [index, row] : Rows) {
+        row.data.erase(columnName);
+    }
+
+    Columns.erase(columnName);
+}
+
+void NameSpace::RemoveColumn(const std::string& tableName, const std::string& columnName) {
+    auto& table = getTable(tableName);
+    table.RemoveColumn(columnName);
+}
+
+// Update an existing row
+void IndexedTable::UpdateRow(const std::string& indexValue, const std::unordered_map<std::string, std::string>& updatedData) {
+    auto it = Rows.find(indexValue);
+    if (it == Rows.end()) {
+        throw std::out_of_range("Row with the given index not found.");
+    }
+
+    TableRow& row = it->second;
+
+    for (const auto& [column, value] : updatedData) {
+        if (Columns.find(column) == Columns.end()) {
+            throw std::invalid_argument("Column does not exist in the table.");
+        }
+        row.data[column] = value;
+    }
+}
+
+void NameSpace::UpdateRow(const std::string& tableName, const std::string& indexValue, const std::unordered_map<std::string, std::string>& updatedData) {
+    auto& table = getTable(tableName);
+    table.UpdateRow(indexValue, updatedData);
+}
+
+// Delete a row by index
+void IndexedTable::DeleteRow(const std::string& indexValue) {
+    if (Rows.erase(indexValue) == 0) {
+        throw std::out_of_range("Row with given index not found.");
+    }
+}
+
+void NameSpace::DeleteRow(const std::string& tableName, const std::string& indexValue) {
+    auto& table = getTable(tableName);
+    table.DeleteRow(indexValue);
+}
+
+// Drop a table from the namespace
+void NameSpace::DropIndexedTable(const std::string& tableName) {
+    if (Tables.erase(tableName) == 0) {
+        throw std::out_of_range("Table with the given name not found.");
+    }
+}
+
 // Serialize the table to a file
 void IndexedTable::serialize(std::ofstream& outFile) const {
     // Write the table name, index column, and index column type
@@ -189,14 +259,4 @@ IndexedTable IndexedTable::loadFromFile(const std::string& fileName) {
     table.deserialize(inFile);
     inFile.close();
     return table;
-}
-
-
-void NameSpace::AddColumn(const std::string& tableName, const std::string& columnName, DataType columnType) {
-    auto it = Tables.find(tableName);
-    if (it == Tables.end()) {
-        throw std::out_of_range("Table with the given name does not exist.");
-    }
-
-    it->second.AddColumn(columnName, columnType);
 }
