@@ -31,8 +31,10 @@ Include(FetchContent)
 
 # Specify the source files for the library
 set(SOURCES
-    src/main.cpp
+    src/IndexedTable.cpp
 )
+
+include_directories("include")
 
 # Create the static library
 add_library(ferrydb STATIC ${SOURCES})
@@ -65,3 +67,18 @@ install(DIRECTORY src/
     DESTINATION include
     FILES_MATCHING PATTERN "*.h"
 )
+
+enable_testing()
+
+add_executable(TableTest "tests/indexed_table_created.cpp")
+target_link_libraries(TableTest ferrydb)
+add_test(NAME indexed_table_created
+         COMMAND TableTest)
+
+add_executable(ColumnTest "tests/indexed_table_column_created.cpp")
+target_link_libraries(ColumnTest ferrydb)
+add_test(NAME indexed_table_column_created COMMAND ColumnTest)
+
+add_executable(RowColumnTest "tests/indexed_table_row_column_deletion.cpp")
+target_link_libraries(RowColumnTest ferrydb)
+add_test(NAME indexed_table_row_column_deletion COMMAND RowColumnTest)
