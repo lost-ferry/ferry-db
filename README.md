@@ -5,10 +5,10 @@ Supports async background persistence.
 # Usage
 ```
 # Needs to be only done once at setup or when you toggle between build types
-cmake -DCMAKE_BUILD_TYPE=Debug .  
+cmake -DCMAKE_BUILD_TYPE=Debug .
 
 # After every code change to build a new binary
-cmake --build . 
+cmake --build .
 ```
 
 ## Available data structures
@@ -29,7 +29,7 @@ cmake --build .
 
 
 ## Use Case#1: Namespaced Key-Value Store
-The developer can create namespaces and within each namespace they can create and query key 
+The developer can create namespaces and within each namespace they can create and query key
 to value mapping. Keys in separate namespaces cannot collide.
 
 ### Supported Types
@@ -87,7 +87,7 @@ DeleteNode(Namespace, Graph, Node)
 
 
 # Use Case#3: Namespaced Graph Traversals
-For graphs created in Use Case#2, we create a data structure which allows the 
+For graphs created in Use Case#2, we create a data structure which allows the
 developer to create and query traversals. Essentially, there is cursor which
 contains the information about its current node and traversal history to that node.
 
@@ -207,7 +207,7 @@ DropIndexedTable(Namespace, Table)
 
 # Use Case#9: (Advanced) Namespaced Cross Platform Async Firehose
 All the above operation publish to a central pub-sub queue and provide an interface
-to the developer to listen for events on this queue. The architecture is that of a 
+to the developer to listen for events on this queue. The architecture is that of a
 firehose: all events are published to the queue as received, and it is upon the consumers
 to filter, buffer them among other things.
 
@@ -219,7 +219,7 @@ Subscribe(Namespace, Event)
 
 # Use Case#10: (Advanced) Async file system persistent
 The data is intermittently persisted to a file system in a non-blocking manner
-which is cross-platform. There can be a potential data loss of operation on the data which 
+which is cross-platform. There can be a potential data loss of operation on the data which
 were done between any two sync.
 
 
