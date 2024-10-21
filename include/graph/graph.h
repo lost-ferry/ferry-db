@@ -144,13 +144,12 @@ namespace FerryDB {
 
 			~SingleGraph() = default;
 
-			std::size_t SerializerSize() const {
+			std::size_t SerializerSize() const override {
 				size_t HeaderSize = sizeof(graph::GraphHeader);
 				size_t EdgeDataSize = GetAllEdgesSize();
 				size_t VertexIdDataSize = GetAllVertexSize();
 				size_t IdMappingSize = GetIdMappingSize();
-				size_t TotalSize = HeaderSize + VertexIdDataSize + EdgeDataSize + IdMappingSize;
-				return TotalSize;
+				return HeaderSize + VertexIdDataSize + EdgeDataSize + IdMappingSize;
 			}
 
 			// Assume Buffer is of size SerializerSize()

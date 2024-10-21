@@ -25,38 +25,83 @@ namespace FerryDB {
 		private:
 			char* Data;
 			std::size_t Length;
+			bool OwnsData;
 
 		public:
 			SerializedData(std::size_t Length)
-				: Data(new char[Length]), Length(Length) {
+				: Data(new char[Length]), Length(Length), OwnsData(true) {
 				// Optionally, initialize the allocated memory to zero
 				std::memset(Data, 0, Length);
 			}
 
+			SerializedData(char* ExternalData, std::size_t Length)
+				: Data(ExternalData), Length(Length), OwnsData(false) {}
+
 			~SerializedData() {
-				delete[] Data;
+				if (OwnsData) {
+					delete[] Data;
+				}
 			}
 
 			SerializedData(const SerializedData& other)
-				: Data(new char[other.Length]), Length(other.Length) {
-				std::memcpy(Data, other.Data, Length);
+				: Length(other.Length), OwnsData(other.OwnsData) {
+				if (OwnsData) {
+					Data = new char[other.Length];
+					std::memcpy(Data, other.Data, Length);  // Deep copy of the data
+				}
+				else {
+					Data = other.Data;
+				}
 			}
 
 			SerializedData& operator=(const SerializedData& other) {
 				if (this == &other) {
-					return *this;
+					return *this;  // Guard against self-assignment
 				}
-				delete[] Data;
-				Length = other.Length;
-				Data = new char[Length];
-				std::memcpy(Data, other.Data, Length);
+
+				if (OwnsData) {
+					delete[] Data;  // Free the existing data
+					Data = new char[other.Length];
+					Length = other.Length;
+					OwnsData = true;  // This object now owns the new data
+					std::memcpy(Data, other.Data, Length);  // Deep copy of the data
+				}
+				else {
+					Data = other.Data;
+					Length = other.Length;
+					OwnsData = false;
+				}
+
 				return *this;
 			}
 
 			SerializedData(SerializedData&& other) noexcept
-				: Data(other.Data), Length(other.Length) {
+				: Data(other.Data), Length(other.Length), OwnsData(other.OwnsData) {
+				other.Data = nullptr;  // Leave the moved-from object in a valid state
+				other.Length = 0;
+				other.OwnsData = false;
+			}
+
+			SerializedData& operator=(SerializedData&& other) noexcept {
+				if (this == &other) {
+					return *this;
+				}
+
+				if (OwnsData) {
+					delete[] Data;  // Free the existing data
+				}
+
+				// Transfer ownership from the other object
+				Data = other.Data;
+				Length = other.Length;
+				OwnsData = other.OwnsData;
+
+				// Leave the moved-from object in a valid state
 				other.Data = nullptr;
 				other.Length = 0;
+				other.OwnsData = false;
+
+				return *this;
 			}
 
 			const char* GetData() const {
@@ -133,6 +178,8 @@ namespace FerryDB {
 			static std::variant<T, Serializable::SerializableError> Deserialize(const Serializable::SerializedData& buffer) {
 				return T::Deserialize(buffer);
 			};
+
+			virtual size_t SerializerSize() const = 0;
 		};
 	};
 
