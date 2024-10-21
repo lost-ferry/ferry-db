@@ -82,3 +82,7 @@ add_test(NAME indexed_table_column_created COMMAND ColumnTest)
 add_executable(RowColumnTest "tests/indexed_table_row_column_deletion.cpp")
 target_link_libraries(RowColumnTest ferrydb)
 add_test(NAME indexed_table_row_column_deletion COMMAND RowColumnTest)
+
+add_executable(SerializerDeserializerTest "tests/indexed_table_serializer_and_deserializer.cpp")
+target_link_libraries(SerializerDeserializerTest ferrydb)
+add_test(NAME indexed_table_serializer_and_deserializer COMMAND SerializerDeserializerTest)
