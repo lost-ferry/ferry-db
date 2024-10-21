@@ -7,13 +7,26 @@
 namespace FerryDB {
 
 	// Writer/Reader class
+	// This should go under the namespace
 	template<typename T>
 	class ObjectManager {
+	private:
+		std::string FileName;
 	public:
-		void Save(SerializableConcepts::SerializableClass<T>& SObj, const std::string& FileName) {
+
+		ObjectManager(const std::string& FileName) : FileName(FileName) {
+			boost::interprocess::shared_memory_object::remove(FileName.c_str());
+		}
+
+		~ObjectManager() {
+			using namespace boost::interprocess;
+			shared_memory_object::remove(FileName.c_str());
+		}
+
+		void Save(SerializableConcepts::SerializableClass<T>& SObj) {
 			using namespace boost::interprocess;
 
-			shared_memory_object shm(create_only, "ObjectData", read_write);
+			shared_memory_object shm(create_only, FileName.c_str(), read_write);
 
 			size_t Size = SObj.SerializerSize();
 			// Resize the memory object to the given size
@@ -34,41 +47,32 @@ namespace FerryDB {
 			}
 		}
 
-		/*T Load(const std::string& FileName) {
+		T Load() {
 			using namespace boost::interprocess;
 
-			managed_mapped_file MappedFile(open_read_only, FileName.c_str());
+			shared_memory_object shm(open_only, FileName.c_str(), read_only);
 
-			size_t* MappedLength = MappedFile.find<size_t>("ObjectSize").first;
-			if (MappedLength == nullptr) {
-				std::cerr << "Object size not found in the file" << std::endl;
-				throw Serializable::SerializableError(Serializable::SerializableErrors::NO_DESERIALIZABLE_DATA, "Object size not found in the file");
-			}
+			mapped_region region(shm, read_only);
 
-			size_t Size = *MappedLength;
-			char* MappedData = MappedFile.find<char>("ObjectData").first;
-			if (MappedData == nullptr) {
-				throw std::runtime_error("Failed to retrieve the serialized data.");
-			}
+			char* MappedData = static_cast<char*>(region.get_address());
+			size_t MappedSize = region.get_size();
 
-			Serializable::SerializedData SerializedData(MappedData, Size);
+			Serializable::SerializedData LoadedData(MappedData, MappedSize);
 
-			std::variant<T, Serializable::SerializableError> DeserializedData = T::Deserialize(SerializedData);
-			if (std::holds_alternative<T>(DeserializedData)) {
-				auto SObj = std::get<T>(DeserializedData);
+			std::variant<T, Serializable::SerializableError> DeserializedObject = T::Deserialize(LoadedData);
+
+			if (std::holds_alternative<T>(DeserializedObject)) {
+				T SObj = std::get<T>(DeserializedObject);
+				std::cout << "Object successfully deserialized from shared memory." << std::endl;
 				return SObj;
 			}
 			else {
-				auto Error = std::get<Serializable::SerializableError>(DeserializedData);
+				// Handle deserialization error
+				auto Error = std::get<Serializable::SerializableError>(DeserializedObject);
 				std::cerr << "Deserialization error occurred: " << Error.what() << std::endl;
 				throw Error;
 			}
-		}*/
-	private:
-		/*void ReserveMemory(char*& data, size_t& data_len, const Serializable::Serializable& s) {
-			data_len = s.size();
-			data = new char[data_len];
-		}*/
+		}
 	};
 }
 

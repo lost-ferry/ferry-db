@@ -1,18 +1,18 @@
-cmake_minimum_required(VERSION 3.22)  # Ensure CMake version supports C++23
-
-# Set the project name and version
+cmake_minimum_required(VERSION 3.22)
 project(ferrydb VERSION 1.0 LANGUAGES CXX)
 
 # Set C++ standard to C++20
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Set policy for Boost ROOT variables
+cmake_policy(SET CMP0144 NEW)
+
 # Enable testing with CTest
 include(CTest)
 enable_testing()
 
 # Check the build type and set flags accordingly
-# Use as: -DCMAKE_BUILD_TYPE=Debug
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0")
 elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
@@ -30,8 +30,6 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_SKIP_INSTALL_ALL_DEPENDENCY true)
 
-Include(FetchContent)
-
 include_directories("include")
 
 # Create ferrydb interface library
@@ -46,34 +44,26 @@ set_target_properties(ferrydb PROPERTIES
     SOVERSION 1
 )
 
-# Installation rules (optional)
-install(TARGETS ferrydb
-    EXPORT ferrydbExport
-)
-install(EXPORT ferrydbExport
-    FILE ferrydbConfig.cmake
-    NAMESPACE ferrydb::
-    DESTINATION lib/cmake/ferrydb
-)
-install(DIRECTORY include/
-    DESTINATION include
-    FILES_MATCHING PATTERN "*.h"
-)
+set(Boost_USE_DEBUG_LIBS         ON)
+set(Boost_USE_MULTITHREADED      ON)
+set(Boost_USE_STATIC_RUNTIME    OFF) 
+find_package(Boost)
 
-# Add test executable
+if(Boost_FOUND)
+    target_link_libraries(ferrydb INTERFACE interprocess)
+    include_directories(${Boost_INCLUDE_DIRS})
+else()
+    message(FATAL_ERROR "Could not find Boost.")
+endif()
+
 add_executable(SimpleGraphTest "tests/simple_graph_test.cpp")
-target_link_libraries(SimpleGraphTest ferrydb)
 add_executable(TypesGraphTest "tests/types_graph_test.cpp")
-target_link_libraries(TypesGraphTest ferrydb)
 
-# Add the test
 add_test(NAME simple_graph_test COMMAND SimpleGraphTest)
 add_test(NAME types_graph_test COMMAND TypesGraphTest)
 
-# Ensure tests are run after build using a custom target
 add_custom_target(run_unit_tests
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
     DEPENDS SimpleGraphTest TypesGraphTest)
 
-# Ensure the tests run when you invoke 'make' (or similar)
 add_dependencies(run_unit_tests SimpleGraphTest TypesGraphTest)
