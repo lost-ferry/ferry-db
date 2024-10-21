@@ -121,7 +121,20 @@ namespace FerryDB {
 				{ a.Serialize() } -> std::same_as<std::variant<Serializable::SerializedData, Serializable::SerializableError>>;
 				{ a.Deserialize(buffer) } -> std::same_as<std::variant<void, Serializable::SerializableError>>;
 		};
-	} // namespace SerializableConcepts
+
+		// CRTP Pattern
+		template<typename T>
+		class SerializableClass {
+		public:
+			static std::variant<Serializable::SerializedData, Serializable::SerializableError> Serialize() {
+				return T::Serialize();
+			};
+
+			static std::variant<T, Serializable::SerializableError> Deserialize(const Serializable::SerializedData& buffer) {
+				return T::Deserialize(buffer);
+			};
+		};
+	};
 
 } // namespace FerryDB
 

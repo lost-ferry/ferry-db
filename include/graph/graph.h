@@ -20,7 +20,7 @@ namespace FerryDB {
 	SerializableConcepts::Serializable<VertexData>&&
 		SerializableConcepts::Serializable<VertexID>&&
 		SerializableConcepts::Serializable<WeightType>
-		class SingleGraph {
+		class SingleGraph : public SerializableConcepts::SerializableClass<SingleGraph<VertexID, VertexData, WeightType>> {
 		public:
 			using EdgeType = graph::edge_descriptor<WeightType>;
 			using VertexType = graph::vertex_descriptor<VertexID, VertexData>;
