@@ -20,7 +20,7 @@ namespace FerryDB {
 	SerializableConcepts::Serializable<VertexData>&&
 		SerializableConcepts::Serializable<VertexID>&&
 		SerializableConcepts::Serializable<WeightType>
-		class SingleGraph : public Serializable::Serializable {
+		class SingleGraph {
 		public:
 			using EdgeType = graph::edge_descriptor<WeightType>;
 			using VertexType = graph::vertex_descriptor<VertexID, VertexData>;
@@ -58,19 +58,19 @@ namespace FerryDB {
 				}
 			}
 
-			size_t GetWeightTypeSize(const WeightType& weight) const {
+			size_t GetWeightTypeSize(const WeightType& Weight) const {
 				if constexpr (std::is_fundamental<WeightType>::value) {
 					return sizeof(WeightType);
 				}
 				else {
-					return weight.SerializerSize();
+					return Weight.SerializerSize();
 				}
 			}
 
-			size_t GetEdgeSize(const EdgeType& edge) const {
-				size_t result = GetVertexIdSize(edge.SourceInternalVertexID) +
-					GetVertexIdSize(edge.DestinationInternalVertexID) +
-					GetWeightTypeSize(edge.weight);
+			size_t GetEdgeSize(const EdgeType& Edge) const {
+				size_t result = GetVertexIdSize(Edge.SourceInternalVertexID) +
+					GetVertexIdSize(Edge.DestinationInternalVertexID) +
+					GetWeightTypeSize(Edge.weight);
 				return result;
 			}
 
@@ -144,7 +144,7 @@ namespace FerryDB {
 
 			~SingleGraph() = default;
 
-			std::size_t SerializerSize() const override {
+			std::size_t SerializerSize() const {
 				size_t HeaderSize = sizeof(graph::GraphHeader);
 				size_t EdgeDataSize = GetAllEdgesSize();
 				size_t VertexIdDataSize = GetAllVertexSize();
@@ -154,32 +154,38 @@ namespace FerryDB {
 			}
 
 			// Assume Buffer is of size SerializerSize()
-			std::vector<char> Serialize() override {
-				size_t Count = 0;
-				size_t Size = SerializerSize();
 
-				std::vector<char> Buffer(Size);
+			// return class with destructor to free memory
+
+			static std::variant<FerryDB::Serializable::SerializedData, FerryDB::Serializable::SerializableError> Serialize(const SingleGraph<VertexID, VertexData, WeightType>& GraphToSerialize) {
+				using SerializedData = FerryDB::Serializable::SerializedData;
+				size_t Count = 0;
+				size_t Size = GraphToSerialize.SerializerSize();
+
+				SerializedData ResponseSerializedData(Size);
+
 				graph::GraphHeader GraphHeader_;
 				GraphHeader_.MagicNumber = SerializerTags::MagicNumber::WEIGHTED_GRAPH;
-				GraphHeader_.VertexCount = InternalIdToVertexTypeMapping.size();
-				GraphHeader_.EdgeCount = EdgeInternalIDIterator;
+				GraphHeader_.VertexCount = GraphToSerialize.InternalIdToVertexTypeMapping.size();
+				GraphHeader_.EdgeCount = GraphToSerialize.EdgeInternalIDIterator;
 				GraphHeader_.VertexStartOffset = sizeof(graph::GraphHeader);
-				GraphHeader_.EdgeStartOffset = GraphHeader_.VertexStartOffset + GetAllVertexSize();
+				GraphHeader_.EdgeStartOffset = GraphHeader_.VertexStartOffset + GraphToSerialize.GetAllVertexSize();
 
-				char* HeaderPtr = Buffer.data();
-				char* CurrentPtr = Buffer.data() + sizeof(graph::GraphHeader);
+				char* HeaderPtr = ResponseSerializedData.GetDataPtr();
+				char* CurrentPtr = ResponseSerializedData.GetDataPtr() + sizeof(graph::GraphHeader);
 
 				// Pair of Offset and Size
 				std::unordered_map<int, std::pair<size_t, size_t>> InternalIdToOffsetMapping;
 
-				for (const auto& [Id, Data] : InternalIdToVertexTypeMapping) {
+				for (const auto& [Id, Data] : GraphToSerialize.InternalIdToVertexTypeMapping) {
 					auto Size = 0;
 					graph::VertexHeader VHeader{};
 					VHeader.VertexNumber = Data.InternalID;
 					// Relative offsets
 					VHeader.VertexIdOffset =
 						sizeof(graph::VertexHeader);
-					VHeader.VertexDataOffset = VHeader.VertexIdOffset + GetVertexIdSize(Id);
+					VHeader.VertexDataOffset = VHeader.VertexIdOffset + GraphToSerialize.GetVertexIdSize(Id);
+					VHeader.VertexDataSize = GraphToSerialize.GetVertexDataSize(Data.VertexValue_);
 					std::memcpy(CurrentPtr, &VHeader, sizeof(graph::VertexHeader));
 
 					CurrentPtr += sizeof(graph::VertexHeader);
@@ -192,9 +198,14 @@ namespace FerryDB {
 						Size += sizeof(VertexID);
 					}
 					else {
-						Id.Serialize(CurrentPtr);
-						CurrentPtr += Id.SerializerSize();
-						Size += Id.SerializerSize();
+						std::variant<Serializable::SerializedData, Serializable::SerializableError> SerializedId = Data.VertexID_.Serialize();
+						if (std::holds_alternative<Serializable::SerializableError>(SerializedId)) {
+							return std::get<Serializable::SerializableError>(SerializedId);
+						}
+						size_t SerializerSize = Data.VertexID_.SerializerSize();
+						std::memcpy(CurrentPtr, std::get<Serializable::SerializedData>(SerializedId).GetDataPtr(), SerializerSize);
+						CurrentPtr += SerializerSize;
+						Size += SerializerSize;
 					}
 
 					// vertex Data
@@ -203,35 +214,29 @@ namespace FerryDB {
 						CurrentPtr += sizeof(Data.VertexValue_);
 						Size += sizeof(Data.VertexValue_);
 					}
-					/*else if (SerializableConcepts::is_string_like<VertexData>::value) {
-						size_t str_len = Data.VertexValue_.size();
-						std::memcpy(CurrentPtr, &str_len, sizeof(size_t));
-						CurrentPtr += sizeof(size_t);
-						Size += sizeof(size_t);
-
-						std::memcpy(CurrentPtr, Data.VertexValue_.c_str(), str_len);
-						CurrentPtr += str_len;
-						Size += str_len;
-					}*/
 					else {
 						auto Size = Data.VertexValue_.SerializerSize();
-						std::vector<char> Res = Data.VertexValue_.Serialize();
-						std::memcpy(CurrentPtr, Res.data(), Size);
+						std::variant<Serializable::SerializedData, Serializable::SerializableError> SerializedVertexValue = Data.VertexValue_.Serialize();
+						if (std::holds_alternative<Serializable::SerializableError>(SerializedVertexValue)) {
+							return std::get<Serializable::SerializableError>(SerializedVertexValue);
+						}
+						std::memcpy(CurrentPtr, std::get<Serializable::SerializedData>(SerializedVertexValue).GetDataPtr(), Size);
 						CurrentPtr += Data.VertexValue_.SerializerSize();
 						Size += Data.VertexValue_.SerializerSize();
 					}
 
-					auto Offset = CurrentPtr - Buffer.data();
+					auto Offset = CurrentPtr - ResponseSerializedData.GetDataPtr();
 					InternalIdToOffsetMapping[Id] = std::make_pair(Offset, Size);
 				}
 
-				for (const auto& [Id, EdgeSet] : Edges) {
+				for (const auto& [Id, EdgeSet] : GraphToSerialize.Edges) {
 					for (const auto& Edge_ : EdgeSet) {
 						graph::EdgeHeader EHeader{};
 						EHeader.EdgeNumber = Edge_.InternalID;
 						EHeader.SourceVertexIdOffset = sizeof(graph::EdgeHeader);
 						EHeader.DestinationVertexIdOffset = EHeader.SourceVertexIdOffset + sizeof(Edge_.SourceInternalVertexID);
 						EHeader.WeightOffset = EHeader.DestinationVertexIdOffset + sizeof(Edge_.DestinationInternalVertexID);
+						EHeader.WeightSize = GraphToSerialize.GetWeightTypeSize(Edge_.weight);
 
 						std::memcpy(CurrentPtr, &EHeader, sizeof(graph::EdgeHeader));
 						CurrentPtr += sizeof(graph::EdgeHeader);
@@ -251,8 +256,13 @@ namespace FerryDB {
 							CurrentPtr += sizeof(WeightType);
 						}
 						else {
-							Edge_.weight.Serialize(CurrentPtr);
-							CurrentPtr += Edge_.weight.SerializerSize();
+							size_t SerializerSize = Edge_.weight.SerializerSize();
+							std::variant<Serializable::SerializedData, Serializable::SerializableError> SerializedWeight = Edge_.weight.Serialize();
+							if (std::holds_alternative<Serializable::SerializableError>(SerializedWeight)) {
+								return std::get<Serializable::SerializableError>(SerializedWeight);
+							}
+							std::memcpy(CurrentPtr, std::get<Serializable::SerializedData>(SerializedWeight).GetDataPtr(), SerializerSize);
+							CurrentPtr += SerializerSize;
 						}
 					}
 				}
@@ -265,16 +275,21 @@ namespace FerryDB {
 				auto IdMappingHeaderPtr = CurrentPtr;
 
 				auto CurrentMappingSize = 0;
-				for (const auto& [Id, InternalId] : VertexToInternalIdMapping) {
+				for (const auto& [Id, InternalId] : GraphToSerialize.VertexToInternalIdMapping) {
 					if constexpr (std::is_fundamental<VertexID>::value) {
 						std::memcpy(CurrentPtr, &Id, sizeof(VertexID));
 						CurrentPtr += sizeof(VertexID);
 						CurrentMappingSize += sizeof(VertexID);
 					}
 					else {
-						Id.Serialize(CurrentPtr);
-						CurrentPtr += Id.SerializerSize();
-						CurrentMappingSize += Id.SerializerSize();
+						auto SerializerSize = Id.SerializerSize();
+						std::variant<Serializable::SerializedData, Serializable::SerializableError> SerializedVertexIdData = Id.Serialize();
+						if (std::holds_alternative<Serializable::SerializableError>(SerializedVertexIdData)) {
+							return std::get<Serializable::SerializableError>(SerializedVertexIdData);
+						}
+						std::memcpy(CurrentPtr, std::get<Serializable::SerializedData>(SerializedVertexIdData).GetDataPtr(), SerializerSize);
+						CurrentPtr += SerializerSize;
+						CurrentMappingSize += SerializerSize;
 					}
 
 					std::memcpy(CurrentPtr, &InternalId, sizeof(int));
@@ -296,19 +311,18 @@ namespace FerryDB {
 				std::memcpy(IdMappingHeaderPtr, &IdMappingHeader_, sizeof(graph::IdMappingHeader));
 				CurrentPtr += sizeof(graph::IdMappingHeader);
 
-				return Buffer;
+				return ResponseSerializedData;
 			}
 
-			void Deserialize(const char* Buffer) override {
-				const char* CurrentPtr = Buffer;
+			static std::variant<SingleGraph<VertexID, VertexData, WeightType>, FerryDB::Serializable::SerializableError> Deserialize(const FerryDB::Serializable::SerializedData& Buffer) {
+				// TODO handle case where graph cannot be parsed from buffer
+				const char* CurrentPtr = Buffer.GetDataPtr();
+
+				SingleGraph<VertexID, VertexData, WeightType> ResultGraph{};
 
 				graph::GraphHeader Header;
 				std::memcpy(&Header, CurrentPtr, sizeof(graph::GraphHeader));
 				CurrentPtr += sizeof(graph::GraphHeader);
-
-				InternalIdToVertexTypeMapping.clear();
-				Edges.clear();
-				VertexToInternalIdMapping.clear();
 
 				for (auto i = 0; i < Header.VertexCount; ++i) {
 					// Read vertex header
@@ -323,8 +337,13 @@ namespace FerryDB {
 						CurrentPtr += sizeof(VertexID);
 					}
 					else {
-						Id.Deserialize(CurrentPtr);
-						CurrentPtr += Id.SerializerSize();
+						auto Diff = VHeader.VertexDataOffset - VHeader.VertexIdOffset;
+						const Serializable::SerializedData IdBuffer(CurrentPtr, Diff);
+						auto DeserializedRes = Id.Deserialize(IdBuffer);
+						if (std::holds_alternative<Serializable::SerializableError>(DeserializedRes)) {
+							return std::get<Serializable::SerializableError>(DeserializedRes);
+						}
+						CurrentPtr += Diff;
 					}
 
 					// Step 4: Deserialize the Vertex Data
@@ -333,22 +352,17 @@ namespace FerryDB {
 						std::memcpy(&Data, CurrentPtr, sizeof(VertexData));
 						CurrentPtr += sizeof(VertexData);
 					}
-					/*else if (SerializableConcepts::is_string_like<VertexData>::value) {
-						size_t str_len = 0;
-						std::memcpy(&str_len, CurrentPtr, sizeof(size_t));
-						CurrentPtr += sizeof(size_t);
-						std::memcpy(&Data, CurrentPtr, str_len);
-						CurrentPtr += str_len;
-					}*/
 					else {
-						Data.Deserialize(CurrentPtr);
-						CurrentPtr += Data.SerializerSize();
+						auto Diff = VHeader.VertexDataSize;
+						const Serializable::SerializedData DataBuffer(CurrentPtr, Diff);
+						auto DeserializedRes = Data.Deserialize(DataBuffer);
+						CurrentPtr += Diff;
 					}
 
 					auto InternalId = VHeader.VertexNumber;
 					VertexType Vertex_(InternalId, Id, Data);
-					InternalIdToVertexTypeMapping[InternalId] = Vertex_;
-					VertexToInternalIdMapping[Id] = InternalId;
+					ResultGraph.InternalIdToVertexTypeMapping[InternalId] = Vertex_;
+					ResultGraph.VertexToInternalIdMapping[Id] = InternalId;
 				}
 
 				for (int i = 0; i < Header.EdgeCount; i++) {
@@ -371,14 +385,21 @@ namespace FerryDB {
 						CurrentPtr += sizeof(WeightType);
 					}
 					else {
-						Weight.Deserialize(CurrentPtr);
-						CurrentPtr += Weight.SerializerSize();
+						auto Diff = EHeader.WeightSize;
+						const Serializable::SerializedData WeightBuffer(CurrentPtr, Diff);
+						auto DeserializedWeight = Weight.Deserialize(WeightBuffer);
+						if (std::holds_alternative<Serializable::SerializableError>(DeserializedWeight)) {
+							return std::get<Serializable::SerializableError>(DeserializedWeight);
+						}
+						CurrentPtr += Diff;
 					}
 
 					auto EdgeInternalId = EHeader.EdgeNumber;
 					EdgeType Edge_(EdgeInternalId, SourceVertexInternalId, DestinationVertexInternalId, Weight);
-					AddEdge(Edge_);
+					ResultGraph.AddEdge(Edge_);
 				}
+
+				return ResultGraph;
 			}
 
 			VertexData Get(const VertexID& Id) {
@@ -565,125 +586,129 @@ namespace FerryDB {
 			//}
 	};
 
-	template <class VertexID, class VertexData, typename WeightType>
-		requires graph::Hashable<VertexID>&& graph::Hashable<WeightType>&&
-	SerializableConcepts::Serializable<VertexData>&&
-		SerializableConcepts::Serializable<VertexID>&&
-		SerializableConcepts::Serializable<WeightType>
-		class Graph {
-		private:
-			std::unordered_map<std::string, SingleGraph<VertexID, VertexData, WeightType>>
-				Graphs;
+	//template <class VertexID, class VertexData, typename WeightType>
+	//	requires graph::Hashable<VertexID>&& graph::Hashable<WeightType>&&
+	//SerializableConcepts::Serializable<VertexData>&&
+	//	SerializableConcepts::Serializable<VertexID>&&
+	//	SerializableConcepts::Serializable<WeightType>
+	//	class Graph {
+	//	private:
+	//		std::unordered_map<std::string, SingleGraph<VertexID, VertexData, WeightType>>
+	//			Graphs;
 
-		public:
-			using VertexDataPtr = VertexData;
-			using GraphType = SingleGraph<VertexID, VertexData, WeightType>;
+	//	public:
+	//		using VertexDataPtr = VertexData;
+	//		using GraphType = SingleGraph<VertexID, VertexData, WeightType>;
 
-			Graph() = default;
+	//		template <typename T>
+	//		using graph_variant_t<T> = std::variant<T, FerryDB::Serializable::SerializableError>;
 
-			void AddNode(const std::string& Namespace, const VertexID& VertexId,
-				const VertexData& Vertex) {
-				if (Graphs.find(Namespace) == Graphs.end()) {
-					Graphs[Namespace] = SingleGraph<VertexID, VertexData, WeightType>();
-				}
-				Graphs[Namespace].AddNode(VertexId, Vertex);
-			}
+	//		Graph() = default;
 
-			void AddEdge(const std::string& Namespace, const VertexID& FromVertexId,
-				const VertexID& ToVertexId, WeightType Weight) {
-				if (Graphs.find(Namespace) == Graphs.end()) {
-					throw std::invalid_argument("Namespace does not exist.");
-				}
-				Graphs[Namespace].AddEdge(FromVertexId, ToVertexId, Weight);
-			}
+	//		void AddNode(const std::string& Namespace, const VertexID& VertexId,
+	//			const VertexData& Vertex) {
+	//			if (Graphs.find(Namespace) == Graphs.end()) {
+	//				Graphs[Namespace] = SingleGraph<VertexID, VertexData, WeightType>();
+	//			}
+	//			Graphs[Namespace].AddNode(VertexId, Vertex);
+	//		}
 
-			VertexData Get(const std::string& Namespace, const VertexID& Id) {
-				if (Graphs.find(Namespace) == Graphs.end()) {
-					throw std::invalid_argument("Namespace does not exist.");
-				}
-				return Graphs[Namespace].Get(Id);
-			}
+	//		void AddEdge(const std::string& Namespace, const VertexID& FromVertexId,
+	//			const VertexID& ToVertexId, WeightType Weight) {
+	//			if (Graphs.find(Namespace) == Graphs.end()) {
+	//				throw std::invalid_argument("Namespace does not exist.");
+	//			}
+	//			Graphs[Namespace].AddEdge(FromVertexId, ToVertexId, Weight);
+	//		}
 
-			WeightType GetEdgeWeight(const std::string& Namespace,
-				const VertexID& FromVertexId,
-				const VertexID& ToVertexId) {
-				if (Graphs.find(Namespace) == Graphs.end()) {
-					throw std::invalid_argument("Namespace does not exist.");
-				}
-				return Graphs[Namespace].GetEdgeWeight(FromVertexId, ToVertexId);
-			}
+	//		VertexData Get(const std::string& Namespace, const VertexID& Id) {
+	//			if (Graphs.find(Namespace) == Graphs.end()) {
+	//				throw std::invalid_argument("Namespace does not exist.");
+	//			}
+	//			return Graphs[Namespace].Get(Id);
+	//		}
 
-			void UpdateWeight(const std::string& Namespace, const VertexID& FromVertexId,
-				const VertexID& ToVertexId, WeightType NewWeight) {
-				if (Graphs.find(Namespace) == Graphs.end()) {
-					throw std::invalid_argument("Namespace does not exist.");
-				}
-				Graphs[Namespace].UpdateWeight(FromVertexId, ToVertexId, NewWeight);
-			}
+	//		WeightType GetEdgeWeight(const std::string& Namespace,
+	//			const VertexID& FromVertexId,
+	//			const VertexID& ToVertexId) {
+	//			if (Graphs.find(Namespace) == Graphs.end()) {
+	//				throw std::invalid_argument("Namespace does not exist.");
+	//			}
+	//			return Graphs[Namespace].GetEdgeWeight(FromVertexId, ToVertexId);
+	//		}
 
-			std::vector<std::pair<VertexID, VertexDataPtr>>
-				GetOutBoundNodes(const std::string& Namespace, const VertexID& FromVertexId) {
-				if (Graphs.find(Namespace) == Graphs.end()) {
-					throw std::invalid_argument("Namespace does not exist.");
-				}
-				return Graphs[Namespace].GetOutBoundNodes(FromVertexId);
-			}
+	//		void UpdateWeight(const std::string& Namespace, const VertexID& FromVertexId,
+	//			const VertexID& ToVertexId, WeightType NewWeight) {
+	//			if (Graphs.find(Namespace) == Graphs.end()) {
+	//				throw std::invalid_argument("Namespace does not exist.");
+	//			}
+	//			Graphs[Namespace].UpdateWeight(FromVertexId, ToVertexId, NewWeight);
+	//		}
 
-			std::vector<std::pair<VertexID, VertexData>>
-				GetInBoundNodes(const std::string& Namespace, const VertexID& ToVertexId) {
-				if (Graphs.find(Namespace) == Graphs.end()) {
-					throw std::invalid_argument("Namespace does not exist.");
-				}
-				return Graphs[Namespace].GetInBoundNodes(ToVertexId);
-			}
+	//		std::vector<std::pair<VertexID, VertexDataPtr>>
+	//			GetOutBoundNodes(const std::string& Namespace, const VertexID& FromVertexId) {
+	//			if (Graphs.find(Namespace) == Graphs.end()) {
+	//				throw std::invalid_argument("Namespace does not exist.");
+	//			}
+	//			return Graphs[Namespace].GetOutBoundNodes(FromVertexId);
+	//		}
 
-			/*void DeleteEdge(const std::string& Namespace, const VertexID& FromVertexId,
-				const VertexID& ToVertexId) {
-				if (Graphs.find(Namespace) == Graphs.end()) {
-					throw std::invalid_argument("Namespace does not exist.");
-				}
-				Graphs[Namespace].DeleteEdge(FromVertexId, ToVertexId);
-			}
+	//		std::vector<std::pair<VertexID, VertexData>>
+	//			GetInBoundNodes(const std::string& Namespace, const VertexID& ToVertexId) {
+	//			if (Graphs.find(Namespace) == Graphs.end()) {
+	//				throw std::invalid_argument("Namespace does not exist.");
+	//			}
+	//			return Graphs[Namespace].GetInBoundNodes(ToVertexId);
+	//		}
 
-			void PrintGraphDFS(const std::string& Namespace,
-				const VertexID& StartVertex) {
-				if (Graphs.find(Namespace) == Graphs.end()) {
-					throw std::invalid_argument("Namespace does not exist.");
-				}
-				Graphs[Namespace].PrintGraphDFS(StartVertex);
-			}
+	//		/*void DeleteEdge(const std::string& Namespace, const VertexID& FromVertexId,
+	//			const VertexID& ToVertexId) {
+	//			if (Graphs.find(Namespace) == Graphs.end()) {
+	//				throw std::invalid_argument("Namespace does not exist.");
+	//			}
+	//			Graphs[Namespace].DeleteEdge(FromVertexId, ToVertexId);
+	//		}
 
-			size_t NodeCount(const std::string& Namespace) {
-				if (Graphs.find(Namespace) == Graphs.end()) {
-					throw std::invalid_argument("Namespace does not exist.");
-				}
-				return Graphs[Namespace].InternalIdToVertexTypeMapping.SerializerSize();
-			}
+	//		void PrintGraphDFS(const std::string& Namespace,
+	//			const VertexID& StartVertex) {
+	//			if (Graphs.find(Namespace) == Graphs.end()) {
+	//				throw std::invalid_argument("Namespace does not exist.");
+	//			}
+	//			Graphs[Namespace].PrintGraphDFS(StartVertex);
+	//		}
 
-			size_t size(const std::string& Namespace) {
-				if (Graphs.find(Namespace) == Graphs.end()) {
-					throw std::invalid_argument("Namespace does not exist.");
-				}
-				return Graphs[Namespace].SerializerSize();
-			}*/
+	//		size_t NodeCount(const std::string& Namespace) {
+	//			if (Graphs.find(Namespace) == Graphs.end()) {
+	//				throw std::invalid_argument("Namespace does not exist.");
+	//			}
+	//			return Graphs[Namespace].InternalIdToVertexTypeMapping.SerializerSize();
+	//		}
 
-			/*void Deserialize(const std::string& Namespace, const char* Buffer) {
-				Graphs[Namespace].Deserialize(Buffer);
-			}*/
+	//		size_t size(const std::string& Namespace) {
+	//			if (Graphs.find(Namespace) == Graphs.end()) {
+	//				throw std::invalid_argument("Namespace does not exist.");
+	//			}
+	//			return Graphs[Namespace].SerializerSize();
+	//		}*/
 
-			void Deserialize(const std::string& Namespace, const char* Buffer) {
-				if (Graphs.find(Namespace) == Graphs.end()) {
-					Graphs[Namespace] = SingleGraph<VertexID, VertexData, WeightType>();
-				}
-				Graphs[Namespace].Deserialize(Buffer);
-			}
+	//		/*void Deserialize(const std::string& Namespace, const char* Buffer) {
+	//			Graphs[Namespace].Deserialize(Buffer);
+	//		}*/
 
-			std::vector<char> Serialize(const std::string& Namespace) {
-				if (Graphs.find(Namespace) == Graphs.end()) {
-					throw std::invalid_argument("Namespace does not exist.");
-				}
-				return Graphs[Namespace].Serialize();
-			}
-	};
+	//		template<typename VertexID, typename VertexData, typename WeightType = int>
+	//		static graph_variant_t<FerryDB::Graph<>> Deserialize(const std::string& Namespace, const FerryDB::Serializable::SerializedData& SerializedData) {
+	//			if (Graphs.find(Namespace) == Graphs.end()) {
+	//				Graphs[Namespace] = SingleGraph<VertexID, VertexData, WeightType>();
+	//			}
+	//			Graphs[Namespace].Deserialize(SerializedData);
+	//		}
+
+	//		static graph_variant_t<FerryDB::Serializable::SerializedData> Serialize(const std::string& Namespace) {
+	//			if (Graphs.find(Namespace) == Graphs.end()) {
+	//				return FerryDB::Serializable::SerializableError(Serializable::NO_NAMESPACE, "Namespace does not exist.");
+	//			}
+	//			return Graphs[Namespace].Serialize();
+	//		}
+	//};
 }; // namespace FerryDB
 #endif // INCLUDE_GRAPH_GRAPH_H_

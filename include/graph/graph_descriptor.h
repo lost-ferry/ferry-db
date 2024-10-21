@@ -67,6 +67,7 @@ namespace FerryDB {
 			int VertexNumber{ 0 };
 			size_t VertexIdOffset{ 0 };
 			size_t VertexDataOffset{ 0 };
+			size_t VertexDataSize{ 0 };
 		};
 
 		struct EdgeHeader {
@@ -74,6 +75,7 @@ namespace FerryDB {
 			size_t SourceVertexIdOffset{ 0 };
 			size_t DestinationVertexIdOffset{ 0 };
 			size_t WeightOffset{ 0 };
+			size_t WeightSize{ 0 };
 		};
 
 		struct IdMappingHeader {
