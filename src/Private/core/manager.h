@@ -2,6 +2,7 @@
 #define INCLUDE_CORE_NAMESPACE_H_
 #include <cstddef>
 #include <string>
+#include<optional>
 #include <core/serializable.h>
 #include <boost/interprocess/file_mapping.hpp>
 #include <boost/interprocess/mapped_region.hpp>
@@ -26,7 +27,7 @@ namespace FerryDB {
 		~ObjectManager() {
 		}
 
-		void Save(SerializableConcepts::SerializableClass<T>& SObj) {
+		std::optional<Serializable::SerializableError> Save(SerializableConcepts::SerializableClass<T>& SObj) {
 			using namespace boost::interprocess;
 
 			size_t Size = SObj.SerializerSize();
@@ -40,12 +41,12 @@ namespace FerryDB {
 
 			if (std::holds_alternative<Serializable::SerializedData>(SerializedData_)) {
 				auto SerializedDataValue = std::get<Serializable::SerializedData>(SerializedData_);
-				std::memcpy(Region.get_address(), SerializedDataValue.GetDataPtr(), Region.get_size());
+				//SerializedDataValue.SetData(0, Region.get_address(), Region.get_size());
+				memcpy(Region.get_address(), SerializedDataValue.GetData(0), SerializedDataValue.GetLength());
+				return std::nullopt;
 			}
 			else {
-				auto Error = std::get<Serializable::SerializableError>(SerializedData_);
-				std::cerr << "Serialization error occurred: " << Error.what() << std::endl;
-				throw Error;
+				return std::get<Serializable::SerializableError>(SerializedData_);
 			}
 		}
 

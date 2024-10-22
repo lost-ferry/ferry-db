@@ -30,13 +30,13 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_SKIP_INSTALL_ALL_DEPENDENCY true)
 
-include_directories("include")
+include_directories("src/Private")
 
 # Create ferrydb interface library
 add_library(ferrydb INTERFACE)
 target_include_directories(ferrydb INTERFACE
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/Private>
+    $<INSTALL_INTERFACE:src/Private>
 )
 
 set_target_properties(ferrydb PROPERTIES

@@ -156,6 +156,7 @@ namespace FerryDB {
 			static std::variant<FerryDB::Serializable::SerializedData, FerryDB::Serializable::SerializableError> Serialize(const SingleGraph<VertexID, VertexData, WeightType>& GraphToSerialize) {
 				using SerializedData = FerryDB::Serializable::SerializedData;
 				size_t Size = GraphToSerialize.SerializerSize();
+				size_t CurrentPtr = 0;
 
 				SerializedData ResponseSerializedData(Size);
 
@@ -166,9 +167,9 @@ namespace FerryDB {
 				GraphHeader_.VertexStartOffset = sizeof(graph::GraphHeader);
 				GraphHeader_.EdgeStartOffset = GraphHeader_.VertexStartOffset + GraphToSerialize.GetAllVertexSize();
 
-				char* HeaderPtr = ResponseSerializedData.GetDataPtr();
-				char* CurrentPtr = ResponseSerializedData.GetDataPtr() + sizeof(graph::GraphHeader);
-
+				auto HeaderPtr = CurrentPtr;
+				auto StartingPtr = CurrentPtr;
+				CurrentPtr = sizeof(graph::GraphHeader);
 
 				// Pair of Offset and Size
 				std::unordered_map<size_t, std::pair<size_t, size_t>> InternalIdToOffsetMapping;
@@ -182,14 +183,14 @@ namespace FerryDB {
 						sizeof(graph::VertexHeader);
 					VHeader.VertexDataOffset = VHeader.VertexIdOffset + GraphToSerialize.GetVertexIdSize(Data.VertexID_);
 					VHeader.VertexDataSize = GraphToSerialize.GetVertexDataSize(Data.VertexValue_);
-					std::memcpy(CurrentPtr, &VHeader, sizeof(graph::VertexHeader));
 
+					ResponseSerializedData.SetData(CurrentPtr, &VHeader, sizeof(graph::VertexHeader));
 					CurrentPtr += sizeof(graph::VertexHeader);
 					Size += sizeof(graph::VertexHeader);
 
 					// vertex Id
 					if constexpr (std::is_fundamental<VertexID>::value) {
-						std::memcpy(CurrentPtr, &Data.VertexID_, sizeof(VertexID));
+						ResponseSerializedData.SetData(CurrentPtr, &Data.VertexID_, sizeof(VertexID));
 						CurrentPtr += sizeof(VertexID);
 						Size += sizeof(VertexID);
 					}
@@ -199,14 +200,14 @@ namespace FerryDB {
 							return std::get<Serializable::SerializableError>(SerializedId);
 						}
 						size_t SerializerSize = Data.VertexID_.SerializerSize();
-						std::memcpy(CurrentPtr, std::get<Serializable::SerializedData>(SerializedId).GetDataPtr(), SerializerSize);
+						ResponseSerializedData.SetData(CurrentPtr, std::get<Serializable::SerializedData>(SerializedId).GetData(), SerializerSize);
 						CurrentPtr += SerializerSize;
 						Size += SerializerSize;
 					}
 
 					// vertex Data
 					if constexpr (std::is_fundamental<VertexData>::value) {
-						std::memcpy(CurrentPtr, &Data.VertexValue_, sizeof(VertexData));
+						ResponseSerializedData.SetData(CurrentPtr, &Data.VertexValue_, sizeof(VertexData));
 						CurrentPtr += sizeof(Data.VertexValue_);
 						Size += sizeof(Data.VertexValue_);
 					}
@@ -216,13 +217,12 @@ namespace FerryDB {
 						if (std::holds_alternative<Serializable::SerializableError>(SerializedVertexValue)) {
 							return std::get<Serializable::SerializableError>(SerializedVertexValue);
 						}
-						std::memcpy(CurrentPtr, std::get<Serializable::SerializedData>(SerializedVertexValue).GetDataPtr(), Size);
+						ResponseSerializedData.SetData(CurrentPtr, std::get<Serializable::SerializedData>(SerializedVertexValue).GetData(), Size);
 						CurrentPtr += Data.VertexValue_.SerializerSize();
 						Size += Data.VertexValue_.SerializerSize();
 					}
 
-					size_t Offset = CurrentPtr - ResponseSerializedData.GetDataPtr();
-					InternalIdToOffsetMapping[Id] = std::make_pair(Offset, Size);
+					InternalIdToOffsetMapping[Id] = std::make_pair(CurrentPtr, Size);
 				}
 
 				for (const auto& [Id, EdgeSet] : GraphToSerialize.Edges) {
@@ -234,21 +234,21 @@ namespace FerryDB {
 						EHeader.WeightOffset = EHeader.DestinationVertexIdOffset + sizeof(Edge_.DestinationInternalVertexID);
 						EHeader.WeightSize = GraphToSerialize.GetWeightTypeSize(Edge_.weight);
 
-						std::memcpy(CurrentPtr, &EHeader, sizeof(graph::EdgeHeader));
+						ResponseSerializedData.SetData(CurrentPtr, &EHeader, sizeof(graph::EdgeHeader));
 						CurrentPtr += sizeof(graph::EdgeHeader);
 
 						// source vertex Id
 
-						std::memcpy(CurrentPtr, &Edge_.SourceInternalVertexID, sizeof(Edge_.SourceInternalVertexID));
+						ResponseSerializedData.SetData(CurrentPtr, &Edge_.SourceInternalVertexID, sizeof(Edge_.SourceInternalVertexID));
 						CurrentPtr += sizeof(Edge_.SourceInternalVertexID);
 
 						// destination vertex Id
-						std::memcpy(CurrentPtr, &Edge_.DestinationInternalVertexID, sizeof(Edge_.DestinationInternalVertexID));
+						ResponseSerializedData.SetData(CurrentPtr, &Edge_.DestinationInternalVertexID, sizeof(Edge_.DestinationInternalVertexID));
 						CurrentPtr += sizeof(Edge_.DestinationInternalVertexID);
 
 						// weight
 						if constexpr (std::is_fundamental<WeightType>::value) {
-							std::memcpy(CurrentPtr, &Edge_.weight, sizeof(WeightType));
+							ResponseSerializedData.SetData(CurrentPtr, &Edge_.weight, sizeof(WeightType));
 							CurrentPtr += sizeof(WeightType);
 						}
 						else {
@@ -257,15 +257,15 @@ namespace FerryDB {
 							if (std::holds_alternative<Serializable::SerializableError>(SerializedWeight)) {
 								return std::get<Serializable::SerializableError>(SerializedWeight);
 							}
-							std::memcpy(CurrentPtr, std::get<Serializable::SerializedData>(SerializedWeight).GetDataPtr(), SerializerSize);
+							ResponseSerializedData.SetData(CurrentPtr, std::get<Serializable::SerializedData>(SerializedWeight).GetData(), SerializerSize);
 							CurrentPtr += SerializerSize;
 						}
 					}
 				}
 
-				ptrdiff_t VertexIdToInternalIdMappingOffset = CurrentPtr - HeaderPtr;
+				auto VertexIdToInternalIdMappingOffset = CurrentPtr - HeaderPtr;
 				GraphHeader_.VertexIdToInternalIdMappingOffset = VertexIdToInternalIdMappingOffset;
-				std::memcpy(HeaderPtr, &GraphHeader_, sizeof(graph::GraphHeader));
+				ResponseSerializedData.SetData(HeaderPtr, &GraphHeader_, sizeof(graph::GraphHeader));
 
 				// Handle VertexID to InternalID Mapping
 				auto IdMappingHeaderPtr = CurrentPtr;
@@ -274,7 +274,7 @@ namespace FerryDB {
 				auto CurrentMappingSize = 0;
 				for (const auto& [Id, InternalId] : GraphToSerialize.VertexToInternalIdMapping) {
 					if constexpr (std::is_fundamental<VertexID>::value) {
-						std::memcpy(CurrentPtr, &Id, sizeof(VertexID));
+						ResponseSerializedData.SetData(CurrentPtr, &Id, sizeof(VertexID));
 						CurrentPtr += sizeof(VertexID);
 						CurrentMappingSize += sizeof(VertexID);
 					}
@@ -284,58 +284,58 @@ namespace FerryDB {
 						if (std::holds_alternative<Serializable::SerializableError>(SerializedVertexIdData)) {
 							return std::get<Serializable::SerializableError>(SerializedVertexIdData);
 						}
-						std::memcpy(CurrentPtr, std::get<Serializable::SerializedData>(SerializedVertexIdData).GetDataPtr(), SerializerSize);
+						ResponseSerializedData.SetData(CurrentPtr, std::get<Serializable::SerializedData>(SerializedVertexIdData).GetData(), SerializerSize);
 						CurrentPtr += SerializerSize;
 						CurrentMappingSize += SerializerSize;
 					}
 
-					std::memcpy(CurrentPtr, &InternalId, sizeof(int));
+					ResponseSerializedData.SetData(CurrentPtr, &InternalId, sizeof(int));
 					CurrentPtr += sizeof(int);
 					CurrentMappingSize += sizeof(int);
 
 					auto [Offset, Size] = InternalIdToOffsetMapping[Id];
-					std::memcpy(CurrentPtr, &Offset, sizeof(size_t));
+					ResponseSerializedData.SetData(CurrentPtr, &Offset, sizeof(size_t));
 					CurrentPtr += sizeof(size_t);
 					CurrentMappingSize += sizeof(size_t);
 
-					std::memcpy(CurrentPtr, &Size, sizeof(size_t));
+					ResponseSerializedData.SetData(CurrentPtr, &Size, sizeof(size_t));
 					CurrentPtr += sizeof(size_t);
 					CurrentMappingSize += sizeof(size_t);
 				}
 
 				graph::IdMappingHeader IdMappingHeader_;
 				IdMappingHeader_.MappingSize = CurrentMappingSize;
-				std::memcpy(IdMappingHeaderPtr, &IdMappingHeader_, sizeof(graph::IdMappingHeader));
+				ResponseSerializedData.SetData(IdMappingHeaderPtr, &IdMappingHeader_, sizeof(graph::IdMappingHeader));
 
 				return ResponseSerializedData;
 			}
 
 			static std::variant<SingleGraph<VertexID, VertexData, WeightType>, FerryDB::Serializable::SerializableError> Deserialize(const FerryDB::Serializable::SerializedData& Buffer) {
 				// TODO handle case where graph cannot be parsed from buffer
-				const char* CurrentPtr = Buffer.GetDataPtr();
+				size_t CurrentPtr = 0;
 
 				SingleGraph<VertexID, VertexData, WeightType> ResultGraph{};
 
 				graph::GraphHeader Header;
-				std::memcpy(&Header, CurrentPtr, sizeof(graph::GraphHeader));
+
+				Buffer.GetData(CurrentPtr, &Header, sizeof(graph::GraphHeader));
 				CurrentPtr += sizeof(graph::GraphHeader);
 
 				for (auto i = 0; i < Header.VertexCount; ++i) {
 					// Read vertex header
 					graph::VertexHeader VHeader;
-					std::memcpy(&VHeader, CurrentPtr, sizeof(graph::VertexHeader));
+					Buffer.GetData(CurrentPtr, &VHeader, sizeof(graph::VertexHeader));
 					CurrentPtr += sizeof(graph::VertexHeader);
 
 					// Step 3: Deserialize the Vertex ID
 					VertexID Id;
 					if constexpr (std::is_fundamental<VertexID>::value) {
-						std::memcpy(&Id, CurrentPtr, sizeof(VertexID));
+						Buffer.GetData(CurrentPtr, &Id, sizeof(VertexID));
 						CurrentPtr += sizeof(VertexID);
 					}
 					else {
 						auto Diff = VHeader.VertexDataOffset - VHeader.VertexIdOffset;
-						const Serializable::SerializedData IdBuffer(CurrentPtr, Diff);
-						auto DeserializedRes = Id.Deserialize(IdBuffer);
+						auto DeserializedRes = Id.Deserialize(Buffer.GetData(CurrentPtr), Diff);
 						if (std::holds_alternative<Serializable::SerializableError>(DeserializedRes)) {
 							return std::get<Serializable::SerializableError>(DeserializedRes);
 						}
@@ -345,13 +345,12 @@ namespace FerryDB {
 					// Step 4: Deserialize the Vertex Data
 					VertexData Data;
 					if constexpr (std::is_fundamental<VertexData>::value) {
-						std::memcpy(&Data, CurrentPtr, sizeof(VertexData));
+						Buffer.GetData(CurrentPtr, &Data, sizeof(VertexData));
 						CurrentPtr += sizeof(VertexData);
 					}
 					else {
 						auto Diff = VHeader.VertexDataSize;
-						const Serializable::SerializedData DataBuffer(CurrentPtr, Diff);
-						auto DeserializedRes = Data.Deserialize(DataBuffer);
+						auto DeserializedRes = Data.Deserialize(Buffer.GetData(CurrentPtr), Diff);
 						CurrentPtr += Diff;
 					}
 
@@ -363,28 +362,26 @@ namespace FerryDB {
 
 				for (int i = 0; i < Header.EdgeCount; i++) {
 					graph::EdgeHeader EHeader;
-					std::memcpy(&EHeader, CurrentPtr, sizeof(graph::EdgeHeader));
-					auto temp = sizeof(graph::EdgeHeader);
+					Buffer.GetData(CurrentPtr, &EHeader, sizeof(graph::EdgeHeader));
 					CurrentPtr += sizeof(graph::EdgeHeader);
 
 					size_t SourceVertexInternalId{ 0 };
-					std::memcpy(&SourceVertexInternalId, CurrentPtr, sizeof(int));
-					CurrentPtr += sizeof(int);
+					Buffer.GetData(CurrentPtr, &SourceVertexInternalId, sizeof(size_t));
+					CurrentPtr += sizeof(size_t);
 
 					size_t DestinationVertexInternalId{ 0 };
-					std::memcpy(&DestinationVertexInternalId, CurrentPtr, sizeof(int));
-					CurrentPtr += sizeof(int);
+					Buffer.GetData(CurrentPtr, &DestinationVertexInternalId, sizeof(size_t));
+					CurrentPtr += sizeof(size_t);
 
 					// Weight
 					WeightType Weight;
 					if constexpr (std::is_fundamental<WeightType>::value) {
-						std::memcpy(&Weight, CurrentPtr, sizeof(WeightType));
+						Buffer.GetData(CurrentPtr, &Weight, sizeof(WeightType));
 						CurrentPtr += sizeof(WeightType);
 					}
 					else {
 						auto Diff = EHeader.WeightSize;
-						const Serializable::SerializedData WeightBuffer(CurrentPtr, Diff);
-						auto DeserializedWeight = Weight.Deserialize(WeightBuffer);
+						auto DeserializedWeight = Weight.Deserialize(Buffer.GetData(CurrentPtr), Diff);
 						if (std::holds_alternative<Serializable::SerializableError>(DeserializedWeight)) {
 							return std::get<Serializable::SerializableError>(DeserializedWeight);
 						}
@@ -399,7 +396,7 @@ namespace FerryDB {
 				return ResultGraph;
 			}
 
-			VertexData Get(const VertexID& Id) {
+			VertexData GetData(const VertexID& Id) {
 				if (VertexToInternalIdMapping.find(Id) == VertexToInternalIdMapping.end()) {
 					throw std::invalid_argument("vertex does not exist.");
 				}

@@ -34,8 +34,8 @@ namespace FerryDB {
 				std::memset(Data, 0, Length);
 			}
 
-			SerializedData(char* ExternalData, std::size_t Length)
-				: Data(ExternalData), Length(Length), OwnsData(false) {}
+			SerializedData(char* Data, size_t Length)
+				: Data(Data), Length(Length), OwnsData(false) {}
 
 			~SerializedData() {
 				if (OwnsData) {
@@ -104,16 +104,16 @@ namespace FerryDB {
 				return *this;
 			}
 
-			const char* GetData() const {
-				return Data;
+			void SetData(size_t Offset, const void* Source, size_t Size) {
+				std::memcpy(Data + Offset, Source, Size);
 			}
 
-			const char* GetDataPtr() const {
-				return Data;
+			void GetData(size_t Offset, void* Destination, size_t Size) const {
+				std::memcpy(Destination, Data + Offset, Size);
 			}
 
-			char* GetDataPtr() {
-				return Data;
+			const char* GetData(size_t Offset) const {
+				return Data + Offset;
 			}
 
 			// Accessor for length
@@ -161,10 +161,10 @@ namespace FerryDB {
 
 		template <typename T>
 		concept Serializable = std::is_fundamental<T>::value ||
-			is_string_like<T>::value || requires(T A, const Serializable::SerializedData & Buffer) {
+			is_string_like<T>::value || requires(T A, const char* Buffer, size_t Length) {
 				{ A.SerializerSize() } -> std::same_as<std::size_t>;
 				{ A.Serialize() } -> std::same_as<std::variant<Serializable::SerializedData, Serializable::SerializableError>>;
-				{ A.Deserialize(Buffer) } -> std::same_as<std::variant<void, Serializable::SerializableError>>;
+				{ A.Deserialize(Buffer, Length) } -> std::same_as<std::variant<void, Serializable::SerializableError>>;
 		};
 
 		// CRTP Pattern
