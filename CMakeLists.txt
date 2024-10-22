@@ -57,13 +57,13 @@ else()
 endif()
 
 add_executable(SimpleGraphTest "tests/simple_graph_test.cpp")
-add_executable(TypesGraphTest "tests/types_graph_test.cpp")
+add_executable(ManagerLoadSaveTest "tests/manager_load_save_test.cpp")
 
 add_test(NAME simple_graph_test COMMAND SimpleGraphTest)
-add_test(NAME types_graph_test COMMAND TypesGraphTest)
+add_test(NAME manager_load_save_test COMMAND ManagerLoadSaveTest)
 
 add_custom_target(run_unit_tests
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-    DEPENDS SimpleGraphTest TypesGraphTest)
+    DEPENDS SimpleGraphTest ManagerLoadSaveTest)
 
-add_dependencies(run_unit_tests SimpleGraphTest TypesGraphTest)
+add_dependencies(run_unit_tests SimpleGraphTest ManagerLoadSaveTest)
