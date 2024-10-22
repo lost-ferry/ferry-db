@@ -25,11 +25,11 @@ namespace FerryDB {
 
 		template <typename VertexID, typename VertexData>
 		struct vertex_descriptor {
-			int InternalID;
+			size_t InternalID;
 			VertexID VertexID_;
 			VertexData VertexValue_;
 
-			vertex_descriptor(int InternalID, VertexID VertexID_, VertexData VertexValue_)
+			vertex_descriptor(size_t InternalID, VertexID VertexID_, VertexData VertexValue_)
 				: InternalID(InternalID), VertexID_(VertexID_), VertexValue_(VertexValue_) {}
 
 			vertex_descriptor() : InternalID(0), VertexID_(), VertexValue_() {}
@@ -38,12 +38,12 @@ namespace FerryDB {
 		template <typename WeightType = int>
 			requires Weight<WeightType>
 		struct edge_descriptor {
-			int InternalID;
-			int SourceInternalVertexID;
-			int DestinationInternalVertexID;
+			size_t InternalID;
+			size_t SourceInternalVertexID;
+			size_t DestinationInternalVertexID;
 			WeightType weight;
 
-			edge_descriptor(int InternalID, int SourceInternalVertexID, int DestinationInternalVertexID,
+			edge_descriptor(size_t InternalID, size_t SourceInternalVertexID, size_t DestinationInternalVertexID,
 				WeightType weight = WeightType(1))
 				:InternalID(InternalID), SourceInternalVertexID(SourceInternalVertexID), DestinationInternalVertexID(DestinationInternalVertexID), weight(weight) {}
 		};
@@ -64,14 +64,14 @@ namespace FerryDB {
 		};
 
 		struct VertexHeader {
-			int VertexNumber{ 0 };
+			size_t VertexNumber{ 0 };
 			size_t VertexIdOffset{ 0 };
 			size_t VertexDataOffset{ 0 };
 			size_t VertexDataSize{ 0 };
 		};
 
 		struct EdgeHeader {
-			int EdgeNumber{ 0 };
+			size_t EdgeNumber{ 0 };
 			size_t SourceVertexIdOffset{ 0 };
 			size_t DestinationVertexIdOffset{ 0 };
 			size_t WeightOffset{ 0 };
@@ -107,7 +107,7 @@ namespace std {
 	struct hash<FerryDB::graph::edge_descriptor<WeightType>> {
 		size_t operator()(
 			const FerryDB::graph::edge_descriptor<WeightType>& ed) const {
-			return std::hash<int>()(ed.InternalID);
+			return std::hash<size_t>()(ed.InternalID);
 		}
 	};
 

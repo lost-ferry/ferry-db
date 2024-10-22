@@ -43,47 +43,47 @@ namespace FerryDB {
 				}
 			}
 
-			SerializedData(const SerializedData& other)
-				: Length(other.Length), OwnsData(other.OwnsData) {
+			SerializedData(const SerializedData& Other)
+				: Length(Other.Length), OwnsData(Other.OwnsData) {
 				if (OwnsData) {
-					Data = new char[other.Length];
-					std::memcpy(Data, other.Data, Length);  // Deep copy of the data
+					Data = new char[Other.Length];
+					std::memcpy(Data, Other.Data, Length);  // Deep copy of the data
 				}
 				else {
-					Data = other.Data;
+					Data = Other.Data;
 				}
 			}
 
-			SerializedData& operator=(const SerializedData& other) {
-				if (this == &other) {
+			SerializedData& operator=(const SerializedData& Other) {
+				if (this == &Other) {
 					return *this;  // Guard against self-assignment
 				}
 
 				if (OwnsData) {
 					delete[] Data;  // Free the existing data
-					Data = new char[other.Length];
-					Length = other.Length;
+					Data = new char[Other.Length];
+					Length = Other.Length;
 					OwnsData = true;  // This object now owns the new data
-					std::memcpy(Data, other.Data, Length);  // Deep copy of the data
+					std::memcpy(Data, Other.Data, Length);  // Deep copy of the data
 				}
 				else {
-					Data = other.Data;
-					Length = other.Length;
+					Data = Other.Data;
+					Length = Other.Length;
 					OwnsData = false;
 				}
 
 				return *this;
 			}
 
-			SerializedData(SerializedData&& other) noexcept
-				: Data(other.Data), Length(other.Length), OwnsData(other.OwnsData) {
-				other.Data = nullptr;  // Leave the moved-from object in a valid state
-				other.Length = 0;
-				other.OwnsData = false;
+			SerializedData(SerializedData&& Other) noexcept
+				: Data(Other.Data), Length(Other.Length), OwnsData(Other.OwnsData) {
+				Other.Data = nullptr;  // Leave the moved-from object in a valid state
+				Other.Length = 0;
+				Other.OwnsData = false;
 			}
 
-			SerializedData& operator=(SerializedData&& other) noexcept {
-				if (this == &other) {
+			SerializedData& operator=(SerializedData&& Other) noexcept {
+				if (this == &Other) {
 					return *this;
 				}
 
@@ -92,14 +92,14 @@ namespace FerryDB {
 				}
 
 				// Transfer ownership from the other object
-				Data = other.Data;
-				Length = other.Length;
-				OwnsData = other.OwnsData;
+				Data = Other.Data;
+				Length = Other.Length;
+				OwnsData = Other.OwnsData;
 
 				// Leave the moved-from object in a valid state
-				other.Data = nullptr;
-				other.Length = 0;
-				other.OwnsData = false;
+				Other.Data = nullptr;
+				Other.Length = 0;
+				Other.OwnsData = false;
 
 				return *this;
 			}
@@ -142,7 +142,7 @@ namespace FerryDB {
 				: ErrorCode_(Code), ErrorMessage_(Message) {}
 
 			// Accessor for error code
-			SerializableErrors getErrorCode() const noexcept {
+			SerializableErrors GetErrorCode() const noexcept {
 				return ErrorCode_;
 			}
 
@@ -161,10 +161,10 @@ namespace FerryDB {
 
 		template <typename T>
 		concept Serializable = std::is_fundamental<T>::value ||
-			is_string_like<T>::value || requires(T a, const Serializable::SerializedData & buffer) {
-				{ a.SerializerSize() } -> std::same_as<std::size_t>;
-				{ a.Serialize() } -> std::same_as<std::variant<Serializable::SerializedData, Serializable::SerializableError>>;
-				{ a.Deserialize(buffer) } -> std::same_as<std::variant<void, Serializable::SerializableError>>;
+			is_string_like<T>::value || requires(T A, const Serializable::SerializedData & Buffer) {
+				{ A.SerializerSize() } -> std::same_as<std::size_t>;
+				{ A.Serialize() } -> std::same_as<std::variant<Serializable::SerializedData, Serializable::SerializableError>>;
+				{ A.Deserialize(Buffer) } -> std::same_as<std::variant<void, Serializable::SerializableError>>;
 		};
 
 		// CRTP Pattern
@@ -175,8 +175,8 @@ namespace FerryDB {
 				return T::Serialize();
 			};
 
-			static std::variant<T, Serializable::SerializableError> Deserialize(const Serializable::SerializedData& buffer) {
-				return T::Deserialize(buffer);
+			static std::variant<T, Serializable::SerializableError> Deserialize(const Serializable::SerializedData& Buffer) {
+				return T::Deserialize(Buffer);
 			};
 
 			virtual size_t SerializerSize() const = 0;

@@ -26,11 +26,11 @@ namespace FerryDB {
 			using VertexType = graph::vertex_descriptor<VertexID, VertexData>;
 
 		private:
-			std::unordered_map<VertexID, int> VertexToInternalIdMapping;
-			std::unordered_map<int, VertexType> InternalIdToVertexTypeMapping;
-			std::unordered_map<int, std::unordered_set<EdgeType>> Edges;
-			int VertexInternalIDIterator = 0;
-			int EdgeInternalIDIterator = 0;
+			std::unordered_map<VertexID, size_t> VertexToInternalIdMapping;
+			std::unordered_map<size_t, VertexType> InternalIdToVertexTypeMapping;
+			std::unordered_map<size_t, std::unordered_set<EdgeType>> Edges;
+			size_t VertexInternalIDIterator = 0;
+			size_t EdgeInternalIDIterator = 0;
 
 			void AddEdge(const EdgeType& Edge) {
 				Edges[Edge.SourceInternalVertexID].insert(Edge);
@@ -41,9 +41,6 @@ namespace FerryDB {
 				if constexpr (std::is_fundamental<VertexData>::value) {
 					return sizeof(VertexData);
 				}
-				//else if (SerializableConcepts::is_string_like<VertexData>::value) {
-				//	return sizeof(size_t) + Data.size();
-				//}
 				else {
 					return Data.SerializerSize();
 				}
@@ -68,8 +65,8 @@ namespace FerryDB {
 			}
 
 			size_t GetEdgeSize(const EdgeType& Edge) const {
-				size_t result = GetVertexIdSize(Edge.SourceInternalVertexID) +
-					GetVertexIdSize(Edge.DestinationInternalVertexID) +
+				size_t result = sizeof(Edge.SourceInternalVertexID) +
+					sizeof(Edge.DestinationInternalVertexID) +
 					GetWeightTypeSize(Edge.weight);
 				return result;
 			}
@@ -158,7 +155,6 @@ namespace FerryDB {
 
 			static std::variant<FerryDB::Serializable::SerializedData, FerryDB::Serializable::SerializableError> Serialize(const SingleGraph<VertexID, VertexData, WeightType>& GraphToSerialize) {
 				using SerializedData = FerryDB::Serializable::SerializedData;
-				size_t Count = 0;
 				size_t Size = GraphToSerialize.SerializerSize();
 
 				SerializedData ResponseSerializedData(Size);
@@ -173,17 +169,18 @@ namespace FerryDB {
 				char* HeaderPtr = ResponseSerializedData.GetDataPtr();
 				char* CurrentPtr = ResponseSerializedData.GetDataPtr() + sizeof(graph::GraphHeader);
 
+
 				// Pair of Offset and Size
-				std::unordered_map<int, std::pair<size_t, size_t>> InternalIdToOffsetMapping;
+				std::unordered_map<size_t, std::pair<size_t, size_t>> InternalIdToOffsetMapping;
 
 				for (const auto& [Id, Data] : GraphToSerialize.InternalIdToVertexTypeMapping) {
-					auto Size = 0;
+					size_t Size{ 0 };
 					graph::VertexHeader VHeader{};
 					VHeader.VertexNumber = Data.InternalID;
 					// Relative offsets
 					VHeader.VertexIdOffset =
 						sizeof(graph::VertexHeader);
-					VHeader.VertexDataOffset = VHeader.VertexIdOffset + GraphToSerialize.GetVertexIdSize(Id);
+					VHeader.VertexDataOffset = VHeader.VertexIdOffset + GraphToSerialize.GetVertexIdSize(Data.VertexID_);
 					VHeader.VertexDataSize = GraphToSerialize.GetVertexDataSize(Data.VertexValue_);
 					std::memcpy(CurrentPtr, &VHeader, sizeof(graph::VertexHeader));
 
@@ -224,7 +221,7 @@ namespace FerryDB {
 						Size += Data.VertexValue_.SerializerSize();
 					}
 
-					auto Offset = CurrentPtr - ResponseSerializedData.GetDataPtr();
+					size_t Offset = CurrentPtr - ResponseSerializedData.GetDataPtr();
 					InternalIdToOffsetMapping[Id] = std::make_pair(Offset, Size);
 				}
 
@@ -272,6 +269,7 @@ namespace FerryDB {
 
 				// Handle VertexID to InternalID Mapping
 				auto IdMappingHeaderPtr = CurrentPtr;
+				CurrentPtr += sizeof(graph::IdMappingHeader);
 
 				auto CurrentMappingSize = 0;
 				for (const auto& [Id, InternalId] : GraphToSerialize.VertexToInternalIdMapping) {
@@ -308,7 +306,6 @@ namespace FerryDB {
 				graph::IdMappingHeader IdMappingHeader_;
 				IdMappingHeader_.MappingSize = CurrentMappingSize;
 				std::memcpy(IdMappingHeaderPtr, &IdMappingHeader_, sizeof(graph::IdMappingHeader));
-				CurrentPtr += sizeof(graph::IdMappingHeader);
 
 				return ResponseSerializedData;
 			}
@@ -367,13 +364,14 @@ namespace FerryDB {
 				for (int i = 0; i < Header.EdgeCount; i++) {
 					graph::EdgeHeader EHeader;
 					std::memcpy(&EHeader, CurrentPtr, sizeof(graph::EdgeHeader));
+					auto temp = sizeof(graph::EdgeHeader);
 					CurrentPtr += sizeof(graph::EdgeHeader);
 
-					int SourceVertexInternalId{ 0 };
+					size_t SourceVertexInternalId{ 0 };
 					std::memcpy(&SourceVertexInternalId, CurrentPtr, sizeof(int));
 					CurrentPtr += sizeof(int);
 
-					int DestinationVertexInternalId{ 0 };
+					size_t DestinationVertexInternalId{ 0 };
 					std::memcpy(&DestinationVertexInternalId, CurrentPtr, sizeof(int));
 					CurrentPtr += sizeof(int);
 
@@ -427,8 +425,8 @@ namespace FerryDB {
 				if (VertexToInternalIdMapping.find(ToVertexId) == VertexToInternalIdMapping.end()) {
 					throw std::invalid_argument("ToVertexId does not exist.");
 				}
-				int FromVertexInternalId = VertexToInternalIdMapping[FromVertexId];
-				int ToVertexInternalId = VertexToInternalIdMapping[ToVertexId];
+				auto FromVertexInternalId = VertexToInternalIdMapping[FromVertexId];
+				auto ToVertexInternalId = VertexToInternalIdMapping[ToVertexId];
 				EdgeType Edge_(EdgeInternalIDIterator, FromVertexInternalId, ToVertexInternalId, Weight);
 				AddEdge(Edge_);
 			}
@@ -441,8 +439,8 @@ namespace FerryDB {
 				if (InternalIdToVertexTypeMapping.find(ToVertexId) == InternalIdToVertexTypeMapping.end()) {
 					throw std::invalid_argument("ToVertexId does not exist.");
 				}
-				int FromVertexInternalId = VertexToInternalIdMapping[FromVertexId];
-				int ToVertexInternalId = VertexToInternalIdMapping[ToVertexId];
+				auto FromVertexInternalId = VertexToInternalIdMapping[FromVertexId];
+				auto ToVertexInternalId = VertexToInternalIdMapping[ToVertexId];
 				auto& EdgeSet = Edges[FromVertexInternalId];
 				for (auto it = EdgeSet.begin(); it != EdgeSet.end(); ++it) {
 					if (it->DestinationInternalVertexID == ToVertexInternalId) {
@@ -462,8 +460,8 @@ namespace FerryDB {
 				if (VertexToInternalIdMapping.find(FromVertexID) == VertexToInternalIdMapping.end()) {
 					throw std::invalid_argument("FromVertexId does not exist.");
 				}
-				int FromVertexInternalID = VertexToInternalIdMapping[FromVertexID];
-				int ToVertexInternalID = VertexToInternalIdMapping[ToVertexID];
+				auto FromVertexInternalID = VertexToInternalIdMapping[FromVertexID];
+				auto ToVertexInternalID = VertexToInternalIdMapping[ToVertexID];
 
 				auto& EdgeSet = Edges[FromVertexInternalID];
 				for (const auto& Edge_ : EdgeSet) {
@@ -479,9 +477,12 @@ namespace FerryDB {
 				if (VertexToInternalIdMapping.find(VertexId) == VertexToInternalIdMapping.end()) {
 					throw std::invalid_argument("Vertex does not exist.");
 				}
-				int VertexInternalId = VertexToInternalIdMapping[VertexId];
-				auto EdgesAtVertex = Edges[VertexInternalId];
 				std::vector<std::pair<VertexID, VertexData>> OutBoundNodes;
+				auto VertexInternalId = VertexToInternalIdMapping[VertexId];
+				if (Edges.find(VertexInternalId) == Edges.end()) {
+					return OutBoundNodes;
+				}
+				auto EdgesAtVertex = Edges[VertexInternalId];
 				for (const auto& Edge_ : EdgesAtVertex) {
 					auto& VertexTypeData = InternalIdToVertexTypeMapping[Edge_.DestinationInternalVertexID];
 					OutBoundNodes.push_back(std::make_pair(
@@ -495,7 +496,7 @@ namespace FerryDB {
 				if (VertexToInternalIdMapping.find(VertexId) == VertexToInternalIdMapping.end()) {
 					throw std::invalid_argument("Vertex does not exist.");
 				}
-				int VertexInternalId = VertexToInternalIdMapping[VertexId];
+				auto VertexInternalId = VertexToInternalIdMapping[VertexId];
 				std::vector<std::pair<VertexID, VertexData>> InBoundNodes;
 				for (const auto& [Source, EdgeSet] : Edges) {
 					for (const auto& Edge : EdgeSet) {
@@ -510,40 +511,65 @@ namespace FerryDB {
 			}
 
 			//// TODO(AnishDeshmukh1999): handle orphan graphs
-			//void DeleteEdge(const VertexID& FromVertexId, const VertexID& ToVertexId) {
-			//	if (InternalIdToVertexTypeMapping.find(FromVertexId) == InternalIdToVertexTypeMapping.end()) {
-			//		throw std::invalid_argument("FromVertexId does not exist.");
-			//	}
-			//	if (InternalIdToVertexTypeMapping.find(ToVertexId) == InternalIdToVertexTypeMapping.end()) {
-			//		throw std::invalid_argument("ToVertexId does not exist.");
-			//	}
-			//	auto EdgesAtVertex = Edges[FromVertexId];
-			//	for (const auto& Edge : EdgesAtVertex) {
-			//		if (Edge.destination == InternalIdToVertexTypeMapping[ToVertexId]) {
-			//			EdgesAtVertex.erase(Edge);
-			//			EdgeCount--;
-			//			return;
-			//		}
-			//	}
-			//	throw std::invalid_argument("Edge does not exist.");
-			//}
+			void DeleteEdge(const VertexID& FromVertexId, const VertexID& ToVertexId) {
+				if (VertexToInternalIdMapping.find(FromVertexId) == VertexToInternalIdMapping.end()) {
+					throw std::invalid_argument("FromVertexId does not exist.");
+				}
+				if (VertexToInternalIdMapping.find(ToVertexId) == VertexToInternalIdMapping.end()) {
+					throw std::invalid_argument("ToVertexId does not exist.");
+				}
+				auto FromVertexInternalId = VertexToInternalIdMapping[FromVertexId];
+				auto ToVertexInternalId = VertexToInternalIdMapping[ToVertexId];
+				auto& EdgesAtVertex = Edges[FromVertexInternalId];
+
+				for (auto It = EdgesAtVertex.begin(); It != EdgesAtVertex.end();) {
+					if (It->DestinationInternalVertexID == ToVertexInternalId) {
+						EdgesAtVertex.erase(It++);
+						EdgeInternalIDIterator--;
+					}
+					else {
+						It++;
+					}
+				}
+
+				return;
+			}
 
 			//// TODO(AnishDeshmukh1999): handle orphan graphs
-			//void DeleteNode(const VertexID& VertexId) {
-			//	InternalIdToVertexTypeMapping.erase(VertexId);
-			//	Edges.erase(VertexId);
-			//	for (auto& [Source, EdgeSet] : Edges) {
-			//		std::vector<Edge> ToDelete;
-			//		for (const auto& Edge : EdgeSet) {
-			//			if (Edge.destination == VertexId) {
-			//				ToDelete.push_back(Edge);
-			//			}
-			//		}
-			//		for (const auto& Edge : ToDelete) {
-			//			EdgeSet.erase(Edge);
-			//		}
-			//	}
-			//}
+			void DeleteNode(const VertexID& VertexId) {
+				if (VertexToInternalIdMapping.find(VertexId) == VertexToInternalIdMapping.end()) {
+					throw std::invalid_argument("Vertex does not exist.");
+				}
+				auto VertexInternalId = VertexToInternalIdMapping[VertexId];
+				InternalIdToVertexTypeMapping.erase(VertexInternalId);
+				if (Edges.find(VertexInternalId) != Edges.end()) {
+					auto EdgesAtVertex = Edges[VertexInternalId];
+					EdgeInternalIDIterator -= EdgesAtVertex.size();
+					Edges.erase(VertexInternalId);
+				}
+				VertexInternalIDIterator--;
+				for (auto& [Source, EdgeSet] : Edges) {
+					std::vector<EdgeType> ToDelete;
+					for (const auto& Edge : EdgeSet) {
+						if (Edge.DestinationInternalVertexID == VertexInternalId) {
+							ToDelete.push_back(Edge);
+						}
+					}
+					for (const auto& Edge : ToDelete) {
+						EdgeSet.erase(Edge);
+						EdgeInternalIDIterator--;
+					}
+				}
+				for (auto It = Edges.begin(); It != Edges.end();) {
+					if (Edges[It->first].empty()) {
+						Edges.erase(It++);
+					}
+					else {
+						It++;
+					}
+				}
+				VertexToInternalIdMapping.erase(VertexId);
+			}
 
 			//void PrintGraphDFS(VertexID StartVertexId) {
 			//	std::stack<VertexID> Stack;
