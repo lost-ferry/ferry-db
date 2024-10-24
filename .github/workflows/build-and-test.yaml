@@ -1,0 +1,57 @@
+name: Build and Test
+
+# Run this action on every push and pull request to the main branch
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+    branches:
+      - "**"
+
+# Define the jobs to run
+jobs:
+  build:
+    # Define the operating system on which to run the job
+    runs-on: ubuntu-latest
+
+    steps:
+    # Step 1: Checkout the code
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    # Step 2: Set up CMake and dependencies
+    - name: Install CMake
+      run: |
+        sudo apt-get update
+        sudo apt-get install cmake -y
+
+    # Step 3: Install dependencies (e.g., compilers, libraries)
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install build-essential -y
+
+    # Step 4: Create build directory and configure project using CMake
+    - name: Configure with CMake
+      run: |
+        mkdir -p build
+        cd build
+        cmake ..
+
+    # Step 5: Build the project
+    - name: Build the project
+      run: |
+        cd build
+        cmake --build .
+
+    # Step 6: Run the tests
+    - name: Run tests
+      run: |
+        cd build
+        ctest --output-on-failure
+
+    # Step 7: Send notification if the build or test fails
+    - name: Notify if failure occurs
+      if: failure()
+      run: echo "Build or tests failed!"
