@@ -41,7 +41,7 @@ add_library(ferrydb STATIC ${SOURCES})
 
 # Specify the include directories for the library
 target_include_directories(ferrydb PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
 )
 
@@ -54,7 +54,6 @@ set_target_properties(ferrydb PROPERTIES
 # Installation rules (optional)
 install(TARGETS ferrydb
     EXPORT ferrydbExport
-    ARCHIVE DESTINATION lib
 )
 
 install(EXPORT ferrydbExport
@@ -63,26 +62,13 @@ install(EXPORT ferrydbExport
     DESTINATION lib/cmake/ferrydb
 )
 
-install(DIRECTORY src/
+install(DIRECTORY include/
     DESTINATION include
     FILES_MATCHING PATTERN "*.h"
 )
 
 enable_testing()
 
-add_executable(TableTest "tests/indexed_table_created.cpp")
-target_link_libraries(TableTest ferrydb)
-add_test(NAME indexed_table_created
-         COMMAND TableTest)
-
-add_executable(ColumnTest "tests/indexed_table_column_created.cpp")
-target_link_libraries(ColumnTest ferrydb)
-add_test(NAME indexed_table_column_created COMMAND ColumnTest)
-
-add_executable(RowColumnTest "tests/indexed_table_row_column_deletion.cpp")
-target_link_libraries(RowColumnTest ferrydb)
-add_test(NAME indexed_table_row_column_deletion COMMAND RowColumnTest)
-
-add_executable(SerializerDeserializerTest "tests/indexed_table_serializer_and_deserializer.cpp")
+add_executable(SerializerDeserializerTest "tests/indexed_table_test.cpp")
 target_link_libraries(SerializerDeserializerTest ferrydb)
-add_test(NAME indexed_table_serializer_and_deserializer COMMAND SerializerDeserializerTest)
+add_test(NAME indexed_table_test COMMAND SerializerDeserializerTest)
