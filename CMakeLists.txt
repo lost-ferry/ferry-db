@@ -37,9 +37,23 @@ include_directories("include")
 # Create ferrydb interface library
 add_library(ferrydb INTERFACE)
 target_include_directories(ferrydb INTERFACE
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:include>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
 )
+
+# Specify the source files for the library
+set(SOURCES
+    src/IndexedTable.cpp
+)
+
+include_directories("include")
+
+# Create the static library
+add_library(ferrydb STATIC ${SOURCES})
+
+# Specify the include directories for the library
+target_include_directories(ferrydb PUBLIC
+    
 
 set_target_properties(ferrydb PROPERTIES
     VERSION ${PROJECT_VERSION}
@@ -55,10 +69,12 @@ install(EXPORT ferrydbExport
     NAMESPACE ferrydb::
     DESTINATION lib/cmake/ferrydb
 )
+
 install(DIRECTORY include/
     DESTINATION include
     FILES_MATCHING PATTERN "*.h"
 )
+
 
 # Add test executable
 add_executable(SimpleGraphTest "tests/simple_graph_test.cpp")
@@ -77,3 +93,10 @@ add_custom_target(run_unit_tests
 
 # Ensure the tests run when you invoke 'make' (or similar)
 add_dependencies(run_unit_tests SimpleGraphTest TypesGraphTest)
+
+enable_testing()
+
+add_executable(SerializerDeserializerTest "tests/indexed_table_test.cpp")
+target_link_libraries(SerializerDeserializerTest ferrydb)
+add_test(NAME indexed_table_test COMMAND SerializerDeserializerTest)
+

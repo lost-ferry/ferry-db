@@ -1,3 +1,6 @@
+# ⚠️ ⚠️ Under Development ⚠️ ⚠️
+This repository is under development. It is very early for any use case.
+
 # Ferry DB
 An embedded in-memory data-structure DB with proper type system.
 Supports async background persistence.
