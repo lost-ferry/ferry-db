@@ -302,3 +302,13 @@ bin/
 build.ninja
 *.cmake
 DartConfiguration.tcl
+
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+.vs
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
